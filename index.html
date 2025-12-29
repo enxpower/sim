@@ -1274,8 +1274,8 @@ function updateMotor(dt){
   }
 }
 
-function stepOnce(dt){
-  
+function stepOnce(){
+  const dt = computeDt();
 
   // Consume events at this time
   consumeEvents();
