@@ -787,108 +787,149 @@ function drawYAxisTicks(ctx, w, h, yFn, vMin, vMax, unit, color="#6b7280"){
 }
 
 function plotPower(st){
-  if(!st.started){ return; }
+  if(!st.started) return;
+
   resizeCanvas(UI.pPlot);
-  const w=UI.pPlot.width,h=UI.pPlot.height;
+  const w = UI.pPlot.width;
+  const h = UI.pPlot.height;
   PCTX.clearRect(0,0,w,h);
-  if(st.series.length<2) return;
 
-  const seg=st.series.slice(Math.max(0,st.series.length-2000));
-  const t0=seg[0].t, t1=seg[seg.length-1].t;
-  const xs=seg.map(d=>((d.t-t0)/(t1-t0||1))*(w-60)+40);
+  if(st.series.length < 2) return;
 
-  const all=seg.flatMap(d=>[d.Ppv,d.Pwind,d.Pload,d.Pdg,d.Pb,d.Pgrid]);
-  const pmin=Math.min(0,...all), pmax=Math.max(...all,1);
-  const y=v=>(1-(v-pmin)/(pmax-pmin||1))*(h-36)+18;
+  // ===== FIXED TIME WINDOW (DO NOT USE ST.t) =====
+  const WINDOW_SEC = 3600; // 1 hour window
+  const lastT = st.series[st.series.length - 1].t;
+  const tStart = Math.max(0, lastT - WINDOW_SEC);
 
-  drawGrid(PCTX,w,h);
+  const seg = st.series.filter(d => d.t >= tStart);
+  if(seg.length < 2) return;
 
-  // y-axis ticks with MW
-  drawYAxisTicks(PCTX,w,h,y,pmin,pmax,"MW");
+  const xs = seg.map(d =>
+    40 + ((d.t - tStart) / WINDOW_SEC) * (w - 60)
+  );
+
+  // ----- Y axis (auto but stable) -----
+  const all = seg.flatMap(d => [
+    d.Ppv, d.Pwind, d.Pload, d.Pdg, d.Pb, d.Pgrid
+  ]);
+  const pmin = Math.min(0, ...all);
+  const pmax = Math.max(1, ...all);
+  const y = v =>
+    (1 - (v - pmin) / (pmax - pmin || 1)) * (h - 36) + 18;
+
+  drawGrid(PCTX, w, h);
+  drawYAxisTicks(PCTX, w, h, y, pmin, pmax, "MW");
 
   // zero line
-  const y0=y(0);
-  PCTX.beginPath(); PCTX.moveTo(40,y0); PCTX.lineTo(w-12,y0);
-  PCTX.setLineDash([5,5]); PCTX.strokeStyle="#9ca3af"; PCTX.lineWidth=1.2; PCTX.stroke(); PCTX.setLineDash([]);
+  const y0 = y(0);
+  PCTX.beginPath();
+  PCTX.moveTo(40, y0);
+  PCTX.lineTo(w - 12, y0);
+  PCTX.setLineDash([5,5]);
+  PCTX.strokeStyle = "#9ca3af";
+  PCTX.lineWidth = 1.2;
+  PCTX.stroke();
+  PCTX.setLineDash([]);
 
-  drawLine(PCTX,xs,seg.map(d=>y(d.Ppv)),COLORS.pv,false);
-  drawLine(PCTX,xs,seg.map(d=>y(d.Pwind)),COLORS.wind,true);
-  drawLine(PCTX,xs,seg.map(d=>y(d.Pload)),COLORS.load,false);
-  drawLine(PCTX,xs,seg.map(d=>y(d.Pdg)),COLORS.diesel,false);
-  drawLine(PCTX,xs,seg.map(d=>y(d.Pb)),COLORS.bess,true);
-  drawLine(PCTX,xs,seg.map(d=>y(d.Pgrid)),COLORS.grid,false);
+  drawLine(PCTX, xs, seg.map(d=>y(d.Ppv)),   COLORS.pv,   false);
+  drawLine(PCTX, xs, seg.map(d=>y(d.Pwind)),COLORS.wind, true);
+  drawLine(PCTX, xs, seg.map(d=>y(d.Pload)),COLORS.load, false);
+  drawLine(PCTX, xs, seg.map(d=>y(d.Pdg)),   COLORS.diesel,false);
+  drawLine(PCTX, xs, seg.map(d=>y(d.Pb)),    COLORS.bess, true);
+  drawLine(PCTX, xs, seg.map(d=>y(d.Pgrid)), COLORS.grid, false);
 
-  // x-axis labels (hours)
-  PCTX.fillStyle="#374151"; PCTX.font=`${11*(window.devicePixelRatio||1)}px sans-serif`;
-  const ticks=4;
+  // X axis labels
+  PCTX.fillStyle = "#374151";
+  PCTX.font = `${11*(window.devicePixelRatio||1)}px sans-serif`;
+  const ticks = 4;
   for(let k=0;k<=ticks;k++){
-    const tk=t0+(k/ticks)*(t1-t0);
-    const x=40+(k/ticks)*(w-60);
-    PCTX.fillText(`${(tk/3600).toFixed(2)} h`,x-18,h-6);
+    const t = tStart + (k/ticks)*WINDOW_SEC;
+    const x = 40 + (k/ticks)*(w - 60);
+    PCTX.fillText(`${(t/3600).toFixed(2)} h`, x-18, h-6);
   }
 
-  // small in-canvas caption (kept subtle)
   PCTX.fillStyle="#6b7280";
   PCTX.font=`${10*(window.devicePixelRatio||1)}px sans-serif`;
   PCTX.fillText("Power", 44, 16);
 }
 
+
 function plotFreq(st){
-  if(!st.started){ return; }
+  if(!st.started) return;
+
   resizeCanvas(UI.fPlot);
-  const w=UI.fPlot.width,h=UI.fPlot.height;
+  const w = UI.fPlot.width;
+  const h = UI.fPlot.height;
   FCTX.clearRect(0,0,w,h);
-  if(st.series.length<2) return;
 
-  const seg=st.series.slice(Math.max(0,st.series.length-2000));
-  const t0=seg[0].t, t1=seg[seg.length-1].t;
-  const xs=seg.map(d=>((d.t-t0)/(t1-t0||1))*(w-60)+40);
+  if(st.series.length < 2) return;
 
-  const f0=st.f0;
-  const fVals=seg.map(d=>d.f);
-  const vVals=seg.map(d=>d.Vmin);
-  const sVals=seg.map(d=>d.soc);
+  // ===== SAME TIME WINDOW LOGIC =====
+  const WINDOW_SEC = 3600;
+  const lastT = st.series[st.series.length - 1].t;
+  const tStart = Math.max(0, lastT - WINDOW_SEC);
 
-  let fmin=Math.min(...fVals,f0-1.0), fmax=Math.max(...fVals,f0+1.0);
-  if(fmax-fmin<0.2){ fmin=f0-1.0; fmax=f0+1.0; }
-  const yF=v=>(1-(v-fmin)/(fmax-fmin||1))*(h-36)+18;
-  const yV=v=>(1-(v-0.6)/(1.2-0.6))*(h-36)+18;  // Vmin in fixed pu band
-  const yS=v=>(1-(v-0)/(100-0||1))*(h-36)+18;     // SOC in 0-100%
+  const seg = st.series.filter(d => d.t >= tStart);
+  if(seg.length < 2) return;
 
-  drawGrid(FCTX,w,h);
+  const xs = seg.map(d =>
+    40 + ((d.t - tStart) / WINDOW_SEC) * (w - 60)
+  );
 
-  // Hz y-axis ticks
-  drawYAxisTicks(FCTX,w,h,yF,fmin,fmax,"Hz");
+  const f0 = st.f0;
+  const fVals = seg.map(d=>d.f);
+  const vVals = seg.map(d=>d.Vmin);
+  const sVals = seg.map(d=>d.soc);
+
+  let fmin = Math.min(...fVals, f0-1);
+  let fmax = Math.max(...fVals, f0+1);
+  if(fmax - fmin < 0.2){
+    fmin = f0 - 1;
+    fmax = f0 + 1;
+  }
+
+  const yF = v => (1-(v-fmin)/(fmax-fmin||1))*(h-36)+18;
+  const yV = v => (1-(v-0.6)/(1.2-0.6))*(h-36)+18;
+  const yS = v => (1-(v-0)/(100||1))*(h-36)+18;
+
+  drawGrid(FCTX, w, h);
+  drawYAxisTicks(FCTX, w, h, yF, fmin, fmax, "Hz");
 
   // f0 line
-  const y60=yF(f0);
-  FCTX.beginPath(); FCTX.moveTo(40,y60); FCTX.lineTo(w-12,y60);
-  FCTX.strokeStyle="#9ca3af"; FCTX.lineWidth=1; FCTX.stroke();
-  FCTX.fillStyle="#6b7280"; FCTX.font=`${10*(window.devicePixelRatio||1)}px sans-serif`;
-  FCTX.fillText(`${f0.toFixed(0)} Hz`, 44, y60-4);
+  const y60 = yF(f0);
+  FCTX.beginPath();
+  FCTX.moveTo(40,y60);
+  FCTX.lineTo(w-12,y60);
+  FCTX.strokeStyle="#9ca3af";
+  FCTX.lineWidth=1;
+  FCTX.stroke();
 
-  drawLine(FCTX,xs,fVals.map(yF),COLORS.freq,false);
-  drawLine(FCTX,xs,vVals.map(yV),COLORS.vmin,true);
-  drawLine(FCTX,xs,sVals.map(yS),COLORS.soc,true);
+  drawLine(FCTX, xs, fVals.map(yF), COLORS.freq, false);
+  drawLine(FCTX, xs, vVals.map(yV), COLORS.vmin, true);
+  drawLine(FCTX, xs, sVals.map(yS), COLORS.soc,  true);
 
-  const last=st.series[st.series.length-1];
+  // live text
+  const last = st.series[st.series.length-1];
   UI.live.textContent =
-    `t=${(last.t/3600).toFixed(2)}h | f=${last.f.toFixed(3)}Hz | Δf=${(last.f-st.f0>=0?"+":"")}${(last.f-st.f0).toFixed(3)}Hz | `+
-    `Vmin=${last.Vmin.toFixed(3)}pu | Pgrid=${last.Pgrid.toFixed(2)}MW | SOC=${last.soc.toFixed(1)}%`;
+    `t=${(last.t/3600).toFixed(2)}h | f=${last.f.toFixed(3)}Hz | ` +
+    `Vmin=${last.Vmin.toFixed(3)}pu | SOC=${last.soc.toFixed(1)}%`;
   UI.live.classList.remove("muted");
 
-  FCTX.fillStyle="#374151"; FCTX.font=`${11*(window.devicePixelRatio||1)}px sans-serif`;
+  // X labels
+  FCTX.fillStyle="#374151";
+  FCTX.font=`${11*(window.devicePixelRatio||1)}px sans-serif`;
   const ticks=4;
   for(let k=0;k<=ticks;k++){
-    const tk=t0+(k/ticks)*(t1-t0);
-    const x=40+(k/ticks)*(w-60);
-    FCTX.fillText(`${(tk/3600).toFixed(2)} h`,x-18,h-6);
+    const t = tStart + (k/ticks)*WINDOW_SEC;
+    const x = 40 + (k/ticks)*(w-60);
+    FCTX.fillText(`${(t/3600).toFixed(2)} h`, x-18, h-6);
   }
 
   FCTX.fillStyle="#6b7280";
   FCTX.font=`${10*(window.devicePixelRatio||1)}px sans-serif`;
   FCTX.fillText("Frequency / Vmin / SOC", 44, 16);
 }
+
 
 /* ==============================
    8) State + initialization
