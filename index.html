@@ -1275,8 +1275,6 @@ function updateMotor(dt){
 }
 
 function stepOnce(dt){
-  if(!(dt > 0)) return;
-
   
 
   // Consume events at this time
@@ -1527,7 +1525,7 @@ function loop(){
     return;
   }
 
-  stepOnce(dt);
+  stepOnce();
   setIdleUI(false);
   plotPower(ST);
   plotFreq(ST);
