@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Off-Grid Mining Microgrid · V2.5_geo · World-class IBR Coordination</title>
+<style>
+  :root{--fg:#111;--muted:#666;--box:#d1d5db;--primary:#111;--bg:#fff;--btnbg:#fff;--btnbd:#111;--btnhover:#0a0a0a10}
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,"Noto Sans",sans-serif;color:var(--fg);margin:14px;background:var(--bg)}
+  h1{font-size:18px;margin:0 0 8px}
+  .row{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0}
+  .card{border:1px solid var(--box);border-radius:10px;padding:12px;background:#fff;flex:1 1 320px}
+  label{display:block;font-size:12px;margin:6px 0 3px}
+  input[type=number],input[type=range],select{width:100%;padding:7px 9px;border:1px solid #cbd5e1;border-radius:8px}
+  input[type=range]{height:32px;padding:0}
+  .btn{min-width:108px;height:38px;padding:0 14px;border:1.5px solid var(--btnbd);border-radius:10px;background:var(--btnbg);
+       cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:600;transition:.15s ease;user-select:none}
+  .btn:hover{background:var(--btnhover)}
+  .btn:active{transform:translateY(1px)}
+  .btn.secondary{border-color:#6b7280;color:#333}
+  .kv{font-family:ui-monospace,Menlo,Consolas,monospace}
+  canvas{width:100%;height:280px;background:#fff;border:1px solid #eee;border-radius:10px;display:block}
+  .stack{position:relative}
+  .overlay{
+    position:absolute;inset:8px;display:flex;align-items:center;justify-content:center;
+    background:repeating-linear-gradient(45deg,#f9fafb,#f9fafb 10px,#f3f4f6 10px,#f3f4f6 20px);
+    border:1px dashed #e5e7eb;border-radius:10px;color:#6b7280;font-size:14px;letter-spacing:.2px
+  }
+  .overlay .pill{background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:6px 10px;display:flex;align-items:center;gap:8px}
+  .legend{position:absolute; right:14px; top:10px; background:rgba(255,255,255,0.92); border:1px solid #e5e7eb; border-radius:8px; padding:6px 8px; font-size:12px}
+  .legend-row{display:flex;align-items:center;gap:6px;margin:2px 0}
+  .swatch{width:16px;height:3px;background:#000}
+  .dash{background:linear-gradient(90deg,#000 0 40%,transparent 40% 60%,#000 60% 100%)}
+  .dash2{background:linear-gradient(90deg,#000 0 30%,transparent 30% 55%,#000 55% 100%)}
+  .kpi{display:flex;gap:10px;flex-wrap:wrap}
+  .kpi .box{border:1px solid var(--box);border-radius:10px;padding:8px 10px;min-width:160px;background:#fff}
+  .kpi .box b{display:block;font-size:12px;color:#374151}
+  .kpi .box span{display:block;font-size:18px;margin-top:2px}
+  #log{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;max-height:180px;overflow:auto;border:1px solid #eee;border-radius:8px;padding:8px;background:#fafafa;white-space:pre-wrap;line-height:1.35}
+  footer{margin-top:14px;padding:14px;border-top:1px dashed #e5e7eb;color:#6b7280;font-size:13px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  .langbtn{font-size:12px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;background:#fff;cursor:pointer}
+  #live{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.5em}
+  .muted{opacity:.5}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1><span data-i18n="title">Off-Grid Mining Microgrid — 35 kV</span> · <span class="kv">V2.5_geo</span></h1>
+  <button id="langBtn" class="langbtn">EN | 中文</button>
+</div>
+
+<!-- Global & Geo -->
+<div class="row">
+  <div class="card">
+    <b data-i18n="global">Global</b>
+    <label><span data-i18n="simHours">Simulation length (hours)</span></label><input id="simHours" type="number" value="24" step="1" min="1">
+    <label><span data-i18n="dt">Time step dt (s)</span></label><input id="dt" type="number" value="0.5" step="0.1" min="0.05">
+    <label><span data-i18n="f0">Nominal frequency f0 (Hz)</span></label><input id="f0" type="number" value="60" step="1" min="40" max="65">
+    <label><span data-i18n="Dsys">System damping D (pu)</span></label><input id="Dsys" type="number" value="2.2" step="0.1">
+    <label><span data-i18n="alphaLoad">Load freq-sensitivity α (%/Hz)</span></label><input id="alphaLoad" type="number" value="2.0" step="0.1">
+    <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn" id="startBtn"><span>▶</span><span data-i18n="start">Start</span></button>
+      <button class="btn secondary" id="pauseBtn"><span>⏸</span><span data-i18n="pause">Pause</span></button>
+      <button class="btn secondary" id="resetBtn"><span>↺</span><span data-i18n="reset">Reset</span></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <b data-i18n="geo">Geography / Insolation</b>
+    <label><span data-i18n="preset">Preset</span></label>
+    <select id="geoPreset">
+      <option value="custom" selected data-i18n="custom">Custom</option>
+      <option value="arctic" data-i18n="arctic">Arctic (φ≈70°N)</option>
+      <option value="desert" data-i18n="desert">Desert (φ≈25°N)</option>
+      <option value="africa" data-i18n="africa">Tropical Africa (φ≈10°N)</option>
+      <option value="andes" data-i18n="andes">Andes (φ≈20°S)</option>
+    </select>
+    <label><span data-i18n="lat">Latitude φ (°)</span></label><input id="latDeg" type="number" value="25" step="0.5" min="-75" max="75">
+    <label><span data-i18n="doy">Day-of-year (1–365)</span></label><input id="doy" type="number" value="172" step="1" min="1" max="365">
+    <label><span data-i18n="pvSoil">PV soiling (0.7–1)</span></label><input id="pvSoil" type="number" value="0.9" step="0.01" min="0.7" max="1">
+  </div>
+
+  <div class="card">
+    <b data-i18n="load_ren">Load / Renewables (0 to disable)</b>
+    <label><span data-i18n="Pload">Load baseline (MW)</span></label><input id="Pload" type="number" value="12" step="0.5" min="0">
+    <label><span data-i18n="loadVar">Load variation (MW)</span></label><input id="loadVar" type="number" value="1.2" step="0.2" min="0">
+    <hr>
+    <label><span data-i18n="PpvMax">PV max (MW)</span></label><input id="PpvMax" type="number" value="30" step="1" min="0">
+    <label><span data-i18n="pvShape">PV day-shape (1–3)</span></label><input id="pvShape" type="number" value="1.5" step="0.1" min="1" max="3">
+    <label><span data-i18n="pvCloud">Cloudiness (0–1)</span></label><input id="pvCloud" type="number" value="0.35" step="0.05" min="0" max="1">
+    <hr>
+    <label><span data-i18n="PwindMax">Wind max (MW)</span></label><input id="PwindMax" type="number" value="6" step="1" min="0">
+    <label><span data-i18n="windMean">Mean wind speed (m/s)</span></label><input id="windMean" type="number" value="8" step="0.5" min="0">
+    <label><span data-i18n="windVar">Wind variability (0–1)</span></label><input id="windVar" type="number" value="0.4" step="0.05" min="0" max="1">
+  </div>
+
+  <div class="card">
+    <b data-i18n="diesel">Diesel (VF)</b>
+    <label><span data-i18n="dg33n">3.3MW initial on-line (0–6)</span></label><input id="dg33n" type="number" value="3" step="1" min="0" max="6">
+    <label><span data-i18n="dg12n">1.25MW initial on-line (0–2)</span></label><input id="dg12n" type="number" value="0" step="1" min="0" max="2">
+    <label><span data-i18n="Rdg">Active power droop R<sub>P</sub> (%)</span></label><input id="Rdg" type="number" value="4" step="0.5">
+    <label><span data-i18n="dgMinPu">Per-unit min load</span></label><input id="dgMinPu" type="number" value="0.35" step="0.05">
+    <label><span data-i18n="rampUp">Ramp up (MW/s)</span></label><input id="rampUp" type="number" value="0.2" step="0.05">
+    <label><span data-i18n="rampDn">Ramp down (MW/s)</span></label><input id="rampDn" type="number" value="1.0" step="0.1">
+    <label><span data-i18n="dgDelay">Start/stop delay (s)</span></label><input id="dgDelay" type="number" value="600" step="30">
+    <label><span data-i18n="dgHyst">Start/stop hysteresis (MW)</span></label><input id="dgHyst" type="number" value="1.5" step="0.1">
+    <label><span data-i18n="allowOff">Allow all-off</span></label>
+    <select id="allowDieselOff"><option value="false" selected data-i18n="no">No (keep ≥1 online)</option><option value="true" data-i18n="yes">Yes</option></select>
+  </div>
+
+  <div class="card">
+    <b data-i18n="bess">BESS (VSG)</b>
+    <label><span>P<sub>max</sub> (MW)</span></label><input id="PbMax" type="number" value="8" step="0.5" min="0">
+    <label><span>E<sub>max</sub> (MWh)</span></label><input id="EbMax" type="number" value="20" step="1" min="0">
+    <label><span data-i18n="soc0">Initial SOC (%)</span></label><input id="soc0" type="number" value="60" step="1" min="0" max="100">
+    <label><span data-i18n="Rvsg">Droop R<sub>P</sub> (%)</span></label><input id="Rvsg" type="number" value="3" step="0.5">
+    <label><span data-i18n="Hvsg">Virtual inertia H (s)</span></label><input id="Hvsg" type="number" value="6.0" step="0.1">
+    <label><span data-i18n="socTarget">SOC target / band (% / %)</span></label>
+    <div class="row" style="gap:8px"><input id="socTarget" type="number" value="55"><input id="socBand" type="number" value="10"></div>
+    <label><span data-i18n="emg">Emergency: |Δf| / overload× / window (Hz / × / s)</span></label>
+    <div class="row" style="gap:8px"><input id="femg" type="number" value="0.2" step="0.05"><input id="overMul" type="number" value="1.4" step="0.1"><input id="overSec" type="number" value="8" step="1"></div>
+  </div>
+
+  <div class="card">
+    <b data-i18n="prot">Protection / Limiting</b>
+    <label><span data-i18n="rocMax">RoCoF max (Hz/s)</span></label><input id="rocMax" type="number" value="0.9" step="0.1">
+    <label><span data-i18n="hzw">Hz–W limit: k1(60.2–60.5)/k2(&gt;60.5)</span></label>
+    <div class="row" style="gap:8px"><input id="kof1" type="number" value="0.5" step="0.1"><input id="kof2" type="number" value="2.0" step="0.1"></div>
+    <label><span>OF1 thresh (Hz)/time (s)</span></label>
+    <div class="row" style="gap:8px"><input id="of1f" type="number" value="60.5" step="0.1"><input id="of1t" type="number" value="10" step="1"></div>
+    <label><span>OF2 thresh (Hz)/time (s)</span></label>
+    <div class="row" style="gap:8px"><input id="of2f" type="number" value="61.0" step="0.1"><input id="of2t" type="number" value="0.2" step="0.1"></div>
+    <label><span data-i18n="reclose">Reclose after trip (s)</span></label><input id="reclose" type="number" value="30" step="1">
+  </div>
+</div>
+
+<!-- Window control -->
+<div class="row">
+  <div class="card" style="flex:1 1 420px">
+    <b data-i18n="view">Window control (draggable)</b>
+    <label><span data-i18n="viewHours">Window length (hours)</span></label><input id="viewHours" type="number" value="4" step="0.5" min="0.5" disabled>
+    <label><span data-i18n="viewStart">Window start (hours)</span></label><input id="viewStart" type="range" min="0" max="20" step="0.1" value="0" disabled>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+      <label style="display:flex;align-items:center;gap:6px"><input id="followLive" type="checkbox" checked disabled> <span data-i18n="followLive">Follow live</span></label>
+      <span class="kv muted" id="viewLabel">[—, —] h</span>
+    </div>
+  </div>
+</div>
+
+<!-- Plots -->
+<div class="row">
+  <div class="card stack" style="flex:2 1 560px">
+    <b data-i18n="powerPlot">Power (MW) · Window</b>
+    <div class="legend">
+      <div class="legend-row"><div class="swatch" style="background:#E69F00"></div><span data-i18n="leg_pv">PV</span></div>
+      <div class="legend-row"><div class="swatch dash2" style="background-image:linear-gradient(90deg,#D55E00 0 30%,transparent 30% 55%,#D55E00 55% 100%)"></div><span data-i18n="leg_wind">Wind</span></div>
+      <div class="legend-row"><div class="swatch" style="background:#374151"></div><span data-i18n="leg_load">Load</span></div>
+      <div class="legend-row"><div class="swatch" style="background:#0072B2"></div><span data-i18n="leg_diesel">Diesel</span></div>
+      <div class="legend-row"><div class="swatch dash" style="background-image:linear-gradient(90deg,#009E73 0 40%,transparent 40% 60%,#009E73 60% 100%)"></div><span data-i18n="leg_bess">BESS (+dis/−ch)</span></div>
+      <div class="legend-row"><div class="swatch" style="background:#f59e0b;height:8px;width:8px;border-radius:50%"></div><span data-i18n="leg_sun">Sunrise/Sunset</span></div>
+    </div>
+    <canvas id="pPlot"></canvas>
+    <div id="pOverlay" class="overlay"><div class="pill"><span>▶</span><span data-i18n="pressStart">Press Start to simulate</span></div></div>
+  </div>
+  <div class="card stack" style="flex:1 1 340px">
+    <b data-i18n="freqPlot">Frequency (Hz) / SOC (%) · Window</b>
+    <div class="legend">
+      <div class="legend-row"><div class="swatch" style="background:#6A3D9A"></div><span data-i18n="leg_freq">Freq</span></div>
+      <div class="legend-row"><div class="swatch dash" style="background-image:linear-gradient(90deg,#009E73 0 40%,transparent 40% 60%,#009E73 60% 100%)"></div><span data-i18n="leg_soc">SOC</span></div>
+      <div class="legend-row"><div class="swatch" style="background:#9ca3af;height:2px;width:18px"></div><span data-i18n="leg_f0">f₀=60 Hz baseline</span></div>
+    </div>
+    <canvas id="fPlot"></canvas>
+    <div id="fOverlay" class="overlay"><div class="pill"><span>▶</span><span data-i18n="pressStart">Press Start to simulate</span></div></div>
+    <div id="live" class="kv muted" style="margin-top:6px">—</div>
+  </div>
+</div>
+
+<!-- KPI & Log -->
+<div class="card">
+  <b data-i18n="metrics">Metrics & Log</b>
+  <div class="kpi" id="kpiRow">
+    <div class="box"><b data-i18n="kpiFuel">Fuel use</b><span id="kpiFuel">—</span></div>
+    <div class="box"><b data-i18n="kpiFuelBase">Fuel (diesel baseline)</b><span id="kpiFuelBase">—</span></div>
+    <div class="box"><b data-i18n="kpiFuelSave">Fuel saved</b><span id="kpiFuelSave">—</span></div>
+    <div class="box"><b data-i18n="kpiRE">Renewables share</b><span id="kpiRE">—</span></div>
+    <div class="box"><b data-i18n="kpiPVgen">PV energy</b><span id="kpiPVgen">—</span></div>
+    <div class="box"><b data-i18n="kpiWDgen">Wind energy</b><span id="kpiWDgen">—</span></div>
+    <div class="box"><b data-i18n="kpiCurt">Curtailment (PV+Wind)</b><span id="kpiCurt">—</span></div>
+    <div class="box"><b data-i18n="kpiN1">N−1 check</b><span id="kpiN1">—</span></div>
+    <div class="box"><b>Trips (PV/Wind)</b><span id="kpiTrips">—</span></div>
+    <div class="box"><b>Recloses (PV/Wind)</b><span id="kpiReclose">—</span></div>
+    <div class="box"><b data-i18n="kpiWin">Recent window</b><span id="kpiWin">—</span></div>
+  </div>
+  <div id="log" class="muted">[Idle] Press Start to begin simulation…</div>
+</div>
+
+<footer>
+  <div>© <span id="yearNow">2025</span> Energize Solutions Inc. – All rights reserved.</div>
+  <div>Contact: <a href="mailto:info@energizeos.com">info@energizeos.com</a></div>
+</footer>
+
+<script>
+(function(){
+/* ────────── i18n ────────── */
+const i18n = {
+  en: {
+    title:"Off-Grid Mining Microgrid — 35 kV",
+    global:"Global",
+    simHours:"Simulation length (hours)",
+    dt:"Time step dt (s)",
+    f0:"Nominal frequency f0 (Hz)",
+    Dsys:"System damping D (pu)",
+    alphaLoad:"Load freq-sensitivity α (%/Hz)",
+    start:"Start",
+    pause:"Pause",
+    reset:"Reset",
+    pressStart:"Press Start to simulate",
+    geo:"Geography / Insolation",
+    preset:"Preset",
+    custom:"Custom",
+    arctic:"Arctic (φ≈70°N)",
+    desert:"Desert (φ≈25°N)",
+    africa:"Tropical Africa (φ≈10°N)",
+    andes:"Andes (φ≈20°S)",
+    lat:"Latitude φ (°)",
+    doy:"Day-of-year (1–365)",
+    pvSoil:"PV soiling (0.7–1)",
+    load_ren:"Load / Renewables (0 to disable)",
+    Pload:"Load baseline (MW)",
+    loadVar:"Load variation (MW)",
+    PpvMax:"PV max (MW)",
+    pvShape:"PV day-shape (1–3)",
+    pvCloud:"Cloudiness (0–1)",
+    PwindMax:"Wind max (MW)",
+    windMean:"Mean wind speed (m/s)",
+    windVar:"Wind variability (0–1)",
+    diesel:"Diesel (VF)",
+    dg33n:"3.3MW initial on-line (0–6)",
+    dg12n:"1.25MW initial on-line (0–2)",
+    Rdg:"Active power droop Rₚ (%)",
+    dgMinPu:"Per-unit min load",
+    rampUp:"Ramp up (MW/s)",
+    rampDn:"Ramp down (MW/s)",
+    dgDelay:"Start/stop delay (s)",
+    dgHyst:"Start/stop hysteresis (MW)",
+    allowOff:"Allow all-off",
+    yes:"Yes",
+    no:"No (keep ≥1 online)",
+    bess:"BESS (VSG)",
+    soc0:"Initial SOC (%)",
+    Rvsg:"Droop Rₚ (%)",
+    Hvsg:"Virtual inertia H (s)",
+    socTarget:"SOC target / band (% / %)",
+    emg:"Emergency: |Δf| / overload× / window (Hz / × / s)",
+    prot:"Protection / Limiting",
+    rocMax:"RoCoF max (Hz/s)",
+    hzw:"Hz–W limit: k1(60.2–60.5)/k2(>60.5)",
+    reclose:"Reclose after trip (s)",
+    view:"Window control (draggable)",
+    viewHours:"Window length (hours)",
+    viewStart:"Window start (hours)",
+    followLive:"Follow live",
+    powerPlot:"Power (MW) · Window",
+    freqPlot:"Frequency (Hz) / SOC (%) · Window",
+    leg_pv:"PV",
+    leg_wind:"Wind",
+    leg_load:"Load",
+    leg_diesel:"Diesel",
+    leg_bess:"BESS (+dis/−ch)",
+    leg_sun:"Sunrise/Sunset",
+    leg_freq:"Freq",
+    leg_soc:"SOC",
+    leg_f0:"f₀=60 Hz baseline",
+    metrics:"Metrics & Log",
+    kpiFuel:"Fuel use",
+    kpiFuelBase:"Fuel (diesel baseline)",
+    kpiFuelSave:"Fuel saved",
+    kpiRE:"Renewables share",
+    kpiPVgen:"PV energy",
+    kpiWDgen:"Wind energy",
+    kpiCurt:"Curtailment (PV+Wind)",
+    kpiN1:"N−1 check",
+    kpiWin:"Recent window"
+  },
+  zh: {
+    title:"离网矿区微电网 — 35 kV",
+    global:"全局",
+    simHours:"仿真时长（小时）",
+    dt:"步长 dt（秒）",
+    f0:"名义频率 f0（Hz）",
+    Dsys:"系统阻尼 D（pu）",
+    alphaLoad:"负荷随频 α（%/Hz）",
+    start:"开始",
+    pause:"暂停",
+    reset:"重置",
+    pressStart:"点击开始运行仿真",
+    geo:"地理/日照",
+    preset:"预设",
+    custom:"自定义",
+    arctic:"极寒（φ≈70°N）",
+    desert:"沙漠（φ≈25°N）",
+    africa:"非洲热带（φ≈10°N）",
+    andes:"安第斯（φ≈20°S）",
+    lat:"纬度 φ（°）",
+    doy:"年内日序（1–365）",
+    pvSoil:"PV 污染/积尘（0.7–1）",
+    load_ren:"负载 / 可再生（设 0 即无）",
+    Pload:"负载基线（MW）",
+    loadVar:"负载波动幅度（MW）",
+    PpvMax:"PV 上限（MW）",
+    pvShape:"PV 日形（1–3）",
+    pvCloud:"云影强度（0–1）",
+    PwindMax:"风电上限（MW）",
+    windMean:"平均风速（m/s）",
+    windVar:"风速波动（0–1）",
+    diesel:"柴油（VF）",
+    dg33n:"3.3MW 初始在网（0–6）",
+    dg12n:"1.25MW 初始在网（0–2）",
+    Rdg:"有功下垂 Rₚ（%）",
+    dgMinPu:"单台最低负载（pu）",
+    rampUp:"上调爬坡（MW/s）",
+    rampDn:"下调爬坡（MW/s）",
+    dgDelay:"启停延时（s）",
+    dgHyst:"启停迟滞（MW）",
+    allowOff:"允许全停",
+    yes:"是",
+    no:"否（至少1台在线）",
+    bess:"BESS（VSG）",
+    soc0:"初始 SOC（%）",
+    Rvsg:"下垂 Rₚ（%）",
+    Hvsg:"虚拟惯量 H（s）",
+    socTarget:"SOC 目标 / 窗口（% / %）",
+    emg:"应急：|Δf| / 过载倍数 / 时间窗（Hz / × / s）",
+    prot:"保护/限功",
+    rocMax:"RoCoF 限值（Hz/s）",
+    hzw:"Hz–W 限功：k1(60.2–60.5)/k2(>60.5)",
+    reclose:"跳闸后重合闸（s）",
+    view:"视窗控制（可滑动）",
+    viewHours:"视窗长度（小时）",
+    viewStart:"视窗起点（小时）",
+    followLive:"跟随实时",
+    powerPlot:"功率（MW） · 视窗",
+    freqPlot:"频率（Hz）/ SOC（%） · 视窗",
+    leg_pv:"PV",
+    leg_wind:"Wind",
+    leg_load:"Load",
+    leg_diesel:"Diesel",
+    leg_bess:"BESS（+放/−充）",
+    leg_sun:"日出/日落",
+    leg_freq:"Freq",
+    leg_soc:"SOC",
+    leg_f0:"f₀=60 Hz 基线",
+    metrics:"指标 & 日志",
+    kpiFuel:"燃油消耗",
+    kpiFuelBase:"燃油对照（全柴油）",
+    kpiFuelSave:"燃油节省",
+    kpiRE:"可再生占比",
+    kpiPVgen:"PV 发电量",
+    kpiWDgen:"Wind 发电量",
+    kpiCurt:"弃电（PV+风）",
+    kpiN1:"N−1 校核",
+    kpiWin:"最近窗口"
+  }
+};
+
+let currentLang='en';
+function applyI18n(){
+  document.documentElement.lang = currentLang==='zh'?'zh':'en';
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const k=el.getAttribute('data-i18n');
+    const map=i18n[currentLang];
+    if(map[k]!=null) el.innerHTML = map[k];
+  });
+  document.getElementById('langBtn').textContent = currentLang==='en' ? 'EN | 中文' : '中文 | EN';
+}
+
+document.getElementById('langBtn').addEventListener('click', ()=>{
+  currentLang = (currentLang==='en') ? 'zh' : 'en';
+  applyI18n();
+});
+
+/* ────────── Helpers ────────── */
+const el=id=>document.getElementById(id);
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const fmt=(v,u)=>v.toLocaleString(undefined,{maximumFractionDigits:(Math.abs(v)<10?2:1)})+(u?(" "+u):"");
+function ts(t){const h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=Math.floor(t%60);
+  const pad=n=>String(n).padStart(2,'0');return `[${pad(h)}:${pad(m)}:${pad(s)}]`;}
+
+/* Colors */
+const COLORS={ pv:'#E69F00', wind:'#D55E00', load:'#374151', diesel:'#0072B2', bess:'#009E73', freq:'#6A3D9A' };
+
+/* PRNG for wind */
+function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return ((t^(t>>>14))>>>0)/4294967296;};}
+let rng = mulberry32(123456);
+
+/* DOM refs */
+const E={ simHours:el('simHours'), dt:el('dt'), f0:el('f0'), Dsys:el('Dsys'), alphaLoad:el('alphaLoad'),
+  geoPreset:el('geoPreset'), latDeg:el('latDeg'), doy:el('doy'), pvSoil:el('pvSoil'),
+  Pload:el('Pload'), loadVar:el('loadVar'),
+  PpvMax:el('PpvMax'), pvShape:el('pvShape'), pvCloud:el('pvCloud'),
+  PwindMax:el('PwindMax'), windMean:el('windMean'), windVar:el('windVar'),
+  dg33n:el('dg33n'), dg12n:el('dg12n'), Rdg:el('Rdg'), dgMinPu:el('dgMinPu'),
+  rampUp:el('rampUp'), rampDn:el('rampDn'), dgDelay:el('dgDelay'), dgHyst:el('dgHyst'), allowDieselOff:el('allowDieselOff'),
+  PbMax:el('PbMax'), EbMax:el('EbMax'), soc0:el('soc0'), Rvsg:el('Rvsg'), Hvsg:el('Hvsg'), socTarget:el('socTarget'), socBand:el('socBand'),
+  femg:el('femg'), overMul:el('overMul'), overSec:el('overSec'),
+  rocMax:el('rocMax'), kof1:el('kof1'), kof2:el('kof2'), of1f:el('of1f'), of1t:el('of1t'), of2f:el('of2f'), of2t:el('of2t'), reclose:el('reclose'),
+  startBtn:el('startBtn'), pauseBtn:el('pauseBtn'), resetBtn:el('resetBtn'),
+  pPlot:el('pPlot'), fPlot:el('fPlot'), live:el('live'),
+  kpiFuel:el('kpiFuel'), kpiFuelBase:el('kpiFuelBase'), kpiFuelSave:el('kpiFuelSave'),
+  kpiRE:el('kpiRE'), kpiPVgen:el('kpiPVgen'), kpiWDgen:el('kpiWDgen'),
+  kpiCurt:el('kpiCurt'), kpiN1:el('kpiN1'), kpiWin:el('kpiWin'),
+  kpiTrips:el('kpiTrips'), kpiReclose:el('kpiReclose'),
+  viewHours:el('viewHours'), viewStart:el('viewStart'), followLive:el('followLive'), viewLabel:el('viewLabel'),
+  log:el('log'), pOverlay:el('pOverlay'), fOverlay:el('fOverlay')
+};
+const PCTX=E.pPlot.getContext('2d'), FCTX=E.fPlot.getContext('2d');
+function logLine(s){E.log.classList.remove('muted');E.log.textContent+=s+"\n";E.log.scrollTop=E.log.scrollHeight;}
+
+/* ────────── State ────────── */
+let running=false, series=[], st={}, windowState=null, started=false;
+
+/* Idle UI */
+function setIdleUI(isIdle){
+  const dis = isIdle;
+  [E.viewHours,E.viewStart,E.followLive].forEach(elm=>elm.disabled=dis);
+  E.viewLabel.textContent = dis ? "[—, —] h" : E.viewLabel.textContent;
+  E.live.textContent = isIdle ? "—" : E.live.textContent;
+  E.live.classList.toggle('muted', isIdle);
+  E.pOverlay.style.display = isIdle ? 'flex' : 'none';
+  E.fOverlay.style.display = isIdle ? 'flex' : 'none';
+  if(isIdle){
+    const w1=E.pPlot.width=E.pPlot.clientWidth*(window.devicePixelRatio||1);
+    const h1=E.pPlot.height=E.pPlot.clientHeight*(window.devicePixelRatio||1);
+    PCTX.clearRect(0,0,w1,h1);
+    const w2=E.fPlot.width=E.fPlot.clientWidth*(window.devicePixelRatio||1);
+    const h2=E.fPlot.height=E.fPlot.clientHeight*(window.devicePixelRatio||1);
+    FCTX.clearRect(0,0,w2,h2);
+  }
+}
+
+/* Init */
+function initState(){
+  const f0_in=parseFloat(E.f0.value);
+  const f0_safe=(isFinite(f0_in)&&f0_in>=40&&f0_in<=65)?f0_in:60;
+  st={
+    t:0, f0:f0_safe, f:f0_safe, dfdt:0, T:+E.simHours.value*3600, Sbase:12,
+    lat:+E.latDeg.value*Math.PI/180, doy:(+E.doy.value|0),
+    load:{base:+E.Pload.value, var:+E.loadVar.value},
+    pv:{Pmax:+E.PpvMax.value, shape:+E.pvShape.value, cloud:+E.pvCloud.value, soil:+E.pvSoil.value,
+        curtWh:0, ofTrip:0, ofDelay:0, genWh:0, _band:0, trips:0, recloses:0, ramp:1 },
+    wind:{Pmax:+E.PwindMax.value, vmean:+E.windMean.value, vvar:+E.windVar.value,
+          curtWh:0, ofTrip:0, ofDelay:0, stopReset:0, genWh:0, _band:0, trips:0, recloses:0, ramp:1 },
+    dg:{fleet:[], Rdg:(+E.Rdg.value)/100, minPu:+E.dgMinPu.value, delay:+E.dgDelay.value, allowOff:(E.allowDieselOff.value==='true'),
+        rampUp:+E.rampUp.value, rampDn:+E.rampDn.value, hyster:+E.dgHyst.value, HperMW:0.5},
+    bess:{Pmax:+E.PbMax.value, Emax:+E.EbMax.value, E:+E.EbMax.value*(+E.soc0.value/100),
+          R:(+E.Rvsg.value)/100, H:+E.Hvsg.value, P:0,
+          socTarget:+E.socTarget.value/100, socBand:+E.socBand.value/100,
+          femg:+E.femg.value, overMul:+E.overMul.value, overSec:+E.overSec.value, emgLeft:+E.overSec.value},
+    D:+E.Dsys.value, alpha:+E.alphaLoad.value/100, rocMax:+E.rocMax.value,
+    kof1:+E.kof1.value, kof2:+E.kof2.value, of1f:+E.of1f.value, of1t:+E.of1t.value, of2f:+E.of2f.value, of2t:+E.of2t.value, reclose:+E.reclose.value,
+    fuelL:0, fuelBaselineL:0, E_load:0, pvDir:0, windDir:0, curtWh:0, n1_ok:true,
+    freezeReduce:false, freezeTimer:0,
+    cfg:{ eps_ok:0.1, tok_ok:5, rocTrig:0.8 }
+  };
+  buildFleet(+E.dg33n.value, +E.dg12n.value);
+  series=[]; E.log.textContent="[Idle] Press Start to begin simulation…";
+  E.log.classList.add('muted');
+  rng = mulberry32(123456);
+  const maxStart=Math.max(0,+E.simHours.value-+E.viewHours.value);
+  E.viewStart.max=String(maxStart);E.viewStart.value="0";updateViewLabel();
+  setIdleUI(true);
+}
+
+/* ────────── Sun & Models ────────── */
+function declination(doy){return 23.44*Math.PI/180*Math.sin(2*Math.PI*(284+doy)/365);}
+function sunTimes(latRad,doy){
+  const δ=declination(doy),φ=latRad;const x=-Math.tan(φ)*Math.tan(δ);
+  if(x<=-1)return{day:24,rise:0,set:24};if(x>=1)return{day:0,rise:12,set:12};
+  const ω=Math.acos(x);const day=24*ω/Math.PI;const rise=12-day/2,set=12+day/2;return{day,rise,set};
+}
+function loadPower(t,f,f0){
+  const base=st.load.base;
+  const cyc=0.6*st.load.var*Math.sin(2*Math.PI*t/900);
+  const mech=0.4*st.load.var*Math.sin(2*Math.PI*t/120);
+  const droop=(1-st.alpha*((f-f0)/f0));
+  return Math.max(0,(base+cyc+mech)*droop);
+}
+function pvAvail(t){
+  if(st.pv.Pmax<=0) return 0;
+  const {rise,set}=sunTimes(st.lat,st.doy);const sr=rise*3600,ss=set*3600;
+  if(t<sr||t>ss) return 0;
+  const Pmax=st.pv.Pmax*st.pv.soil,s=st.pv.shape;const u=(t-sr)/Math.max(1,(ss-sr));
+  const day=Math.sin(Math.PI*u)**s;
+  const cloud=1-st.pv.cloud + st.pv.cloud*(0.5+0.5*Math.sin(0.03*t)*0.6+0.4*Math.sin(0.011*t+1.7));
+  const temp=1-0.05*Math.exp(-Math.pow((u-0.5)/0.18,2));
+  return Math.max(0,Pmax*day*cloud*temp);
+}
+function windSpeed(t){
+  const m=st.wind.vmean,v=st.wind.vvar;
+  const base=m*(1+0.18*Math.sin(0.008*t)+0.12*Math.sin(0.021*t+1.1));
+  const gust=(rng()-0.5)*v*1.6;return Math.max(0,base*(1+gust));
+}
+function windAvail(v){
+  if(st.wind.Pmax<=0) return 0;const Pmax=st.wind.Pmax;
+  if(v<3) return 0;if(v<12){const pu=(v-3)/(12-3);return Pmax*pu*pu;}
+  if(v<=25) return Pmax; if(st.wind.stopReset<=0){st.wind.stopReset=120;logLine(`${ts(st.t)} Wind cut-out`);} return 0;
+}
+
+/* ────────── Diesel Fleet ────────── */
+function buildFleet(n33,n12){
+  st.dg.fleet=[];for(let i=0;i<6;i++) st.dg.fleet.push(newDG(3.3,"DG3.3",i<n33));
+  for(let i=0;i<2;i++) st.dg.fleet.push(newDG(1.25,"DG1.25",i<n12));
+  if(!st.dg.allowOff && st.dg.fleet.filter(x=>x.online).length===0){
+    st.dg.fleet[0].online=true;st.dg.fleet[0].P=st.dg.fleet[0].cap*0.7;
+  }
+}
+function newDG(cap,type,online){return{cap,type,online,P:online?cap*0.7:0,timer:0,starting:false,stopping:false};}
+function dieselDispatch(dt,fpu,residual){
+  const u=st.dg.fleet;if(st.wind.stopReset>0) st.wind.stopReset-=dt;
+  let onlineCap=u.reduce((a,x)=>a+(x.online?x.cap:0),0);
+  const largest=Math.max(0,...u.filter(x=>x.online).map(x=>x.cap));
+  const need=Math.max(0,residual);st.n1_ok=((onlineCap-largest)>=need*0.95);
+  const desiredCap=(need>0)?need/0.75:(st.dg.allowOff?0:3.3);
+  const upH=st.dg.hyster,dnH=st.dg.hyster*1.3;
+  if(onlineCap<desiredCap-upH){if(!startOne("DG3.3")) startOne("DG1.25");}
+  else if(onlineCap-desiredCap>dnH && !st.freezeReduce && st.bess.E/st.bess.Emax>0.3){stopOne();}
+  for(const x of u){
+    if(x.starting){x.timer-=dt;if(x.timer<=0){x.starting=false;x.online=true;x.P=x.cap*0.65;logLine(`${ts(st.t)} Sync in: ${x.type}`);}}
+    if(x.stopping){x.P=Math.max(0,x.P-st.dg.rampDn*dt*1.5);x.timer-=dt;if(x.timer<=0){x.stopping=false;x.online=false;x.P=0;logLine(`${ts(st.t)} Island off: ${x.type}`);}}
+  }
+  const online=u.filter(x=>x.online);const PdgMax=online.reduce((a,x)=>a+x.cap,0);
+  const droopAdj=-fpu/Math.max(0.001,st.dg.Rdg)*PdgMax;
+  let Pd_ref=clamp(need+droopAdj,0,PdgMax);
+  const sumMin=online.reduce((a,x)=>a+x.cap*st.dg.minPu,0);
+  if(Pd_ref<sumMin) Pd_ref=sumMin;
+  if(st.f-st.f0>0.2) Pd_ref=Math.min(Pd_ref,sumMin+0.2*(PdgMax-sumMin));
+  const per=(online.length>0)?Pd_ref/online.length:0;
+  for(const x of online){const minP=x.cap*st.dg.minPu;const target=clamp(per,minP,x.cap);
+    const ramp=(target<x.P)?st.dg.rampDn:st.dg.rampUp;const dP=clamp(target-x.P,-ramp*dt,ramp*dt);x.P=clamp(x.P+dP,0,x.cap);}
+  return online.reduce((a,x)=>a+x.P,0);
+  function startOne(type){const c=u.find(x=>!x.online && !x.starting && x.type===type);
+    if(c){c.starting=true;c.timer=st.dg.delay;logLine(`${ts(st.t)} Start cmd: ${type}`);return true;} return false;}
+  function stopOne(){const c=u.find(x=>x.online && !x.stopping && !x.starting && x.P<x.cap*0.6);
+    if(c){c.stopping=true;c.timer=st.dg.delay;logLine(`${ts(st.t)} Stop cmd: ${c.type}`);return true;} return false;}
+}
+
+/* ────────── SFC / Fuel ────────── */
+function sfc_g_per_kWh(pu){
+  if(pu<=0) return 0;
+  if(pu<=0.25) return 350*pu/0.25;
+  if(pu<=0.5)  return 300-(300-230)*((pu-0.25)/0.25);
+  if(pu<=0.75) return 230-(230-205)*((pu-0.5)/0.25);
+  return 205-(205-200)*((pu-0.75)/0.25);
+}
+function fuelLH(fleet){
+  const rho=0.84;let Lh=0;
+  for(const x of fleet){if(!x.online||x.P<=0) continue; const pu=clamp(x.P/x.cap,0,1);
+    const kW=x.P*1000;const kgph=(sfc_g_per_kWh(pu)/1000)*kW;Lh+=kgph/rho;}
+  return Lh;
+}
+function baselineFuelLitersPerHour(Pload){
+  const units=[]; for(let i=0;i<6;i++) units.push({cap:3.3}); for(let i=0;i<2;i++) units.push({cap:1.25});
+  const minPu=st.dg.minPu; if(Pload<=0) return 0;
+  units.sort((a,b)=>b.cap-a.cap);
+  let chosen=[], sumCap=0; const targetPu=0.7;
+  for(const u of units){ chosen.push({cap:u.cap,P:0}); sumCap+=u.cap; let per=Pload/Math.max(sumCap,1e-6); if(sumCap>=Pload && per<=0.9) break; }
+  let per=Math.max(Pload/sumCap, minPu); per=Math.min(per, 0.95); per = clamp(Math.max(per, targetPu-0.1), minPu, 0.95);
+  let Lh=0, rho=0.84;
+  for(const x of chosen){ const P = per*x.cap; const kW = P*1000; const kgph=(sfc_g_per_kWh(per)/1000)*kW; Lh += kgph/rho; }
+  const supplied = chosen.reduce((a,x)=>a+per*x.cap,0);
+  if(Pload>supplied){ const extraKW=(Pload-supplied)*1000; const kgph=(200/1000)*extraKW; Lh += kgph/rho; }
+  return Lh;
+}
+
+/* ────────── BESS Control ────────── */
+function bessControl(dt,fpu,Pinj_pre){
+  if(st.bess.Pmax<=0 || st.bess.Emax<=0){st.bess.P=0;return;}
+  const Pmax=st.bess.Pmax;let PmaxEff=Pmax;const soc=st.bess.E/st.bess.Emax;
+
+  if(Math.abs(st.f-st.f0)>st.bess.femg && soc<0.9 && st.bess.emgLeft>0){PmaxEff=Pmax*st.bess.overMul;}
+
+  const P_droop=clamp(-fpu/Math.max(0.001,st.bess.R)*PmaxEff,-PmaxEff,PmaxEff);
+  const P_corr=clamp(-Pinj_pre,-PmaxEff,PmaxEff);
+  const err=(st.bess.socTarget - soc);const P_energy=clamp(err*Pmax*0.25,-0.6*PmaxEff,0.6*PmaxEff);
+  let Pcmd=0.55*P_corr+0.35*P_droop+0.10*P_energy;
+
+  const soft=0.08;if(soc<soft) Pcmd=Math.min(Pcmd,0);if(soc>1-soft) Pcmd=Math.max(Pcmd,0);
+
+  st.bess.P=clamp(Pcmd,-PmaxEff,PmaxEff);
+
+  if(PmaxEff>Pmax && Math.abs(st.bess.P)>Pmax){st.bess.emgLeft=Math.max(0,st.bess.emgLeft-dt);
+    if(st.bess.emgLeft===0) logLine(`${ts(st.t)} BESS emergency window exhausted`);}
+  else{st.bess.emgLeft=Math.min(st.bess.overSec, st.bess.emgLeft+0.3*dt);}
+}
+
+/* ────────── IBR Over-frequency Limiting + Reclose ────────── */
+function limitREByFreq(Pavail, bag, f, dfdt, dt){
+  if(Pavail<=0) return 0;
+
+  if(bag.ofTrip>0){ bag.ofTrip-=dt; bag.ramp=0; return 0; }
+
+  const f0=st.f0; const rocFreeze = Math.abs(dfdt) > (st.cfg.rocTrig ?? 0.8);
+  let band=0; if(f>=st.of2f) band=2; else if(f>=st.of1f) band=1;
+
+  if(!rocFreeze){
+    if(band===bag._band && band>0) bag.ofDelay+=dt;
+    else if(band>0){ bag.ofDelay=dt; bag._band=band; }
+    else { bag.ofDelay=Math.max(0,bag.ofDelay-2*dt); bag._band=0; }
+  }
+
+  if(band===2 && bag.ofDelay>=st.of2t){ bag.ofTrip=st.reclose; bag.ofDelay=0; bag._band=0; bag.ramp=0; bag.trips=(bag.trips||0)+1; logLine(`${ts(st.t)} ${bag===st.pv?'PV':'Wind'} OF2 trip`); return 0; }
+  if(band===1 && bag.ofDelay>=st.of1t){ bag.ofTrip=st.reclose; bag.ofDelay=0; bag._band=0; bag.ramp=0; bag.trips=(bag.trips||0)+1; logLine(`${ts(st.t)} ${bag===st.pv?'PV':'Wind'} OF1 trip`); return 0; }
+
+  if(bag.ramp<1){
+    if(Math.abs(f-f0)<= (st.cfg.eps_ok ?? 0.1)) bag.ofDelay += dt; else bag.ofDelay = 0;
+    if(bag.ofDelay >= (st.cfg.tok_ok ?? 5)){ bag.ramp = Math.min(1, bag.ramp + dt*0.1 + (rng()*0.1)); if(bag.ramp===1){bag.recloses=(bag.recloses||0)+1; bag.ofDelay=0;} }
+  }
+
+  let Pout=Pavail;
+  if(f>f0+0.2){
+    const onlineCap=st.dg.fleet.reduce((a,x)=>a+(x.online?x.cap:0),0);
+    const Hsys = onlineCap*st.dg.HperMW + st.bess.H;
+    const Pb_avail = Math.max(0, st.bess.Pmax - Math.abs(st.bess.P));
+    const k1 = (st.kof1||0.5) + 0.6/(Hsys+1e-6) + 0.3/(Pb_avail+1e-3);
+    const k2 = (st.kof2||2.0) * (k1/(st.kof1||0.5));
+
+    const df1 = Math.max(0, Math.min(f - (f0+0.2), 0.3));
+    const df2 = Math.max(0, f - (f0+0.5));
+    const s1  = Math.max(0, 1 - k1*(df1/0.3));
+    const s2  = Math.max(0, 1 - k2*df2);
+    const scale = Math.min(s1,s2);
+    Pout = Pavail * scale;
+  }
+
+  return Pout * Math.max(0, Math.min(1, bag.ramp));
+}
+
+/* ────────── Step ────────── */
+function step(){
+  const dt=+E.dt.value;
+
+  const Ppv_av=pvAvail(st.t);
+  const vwind=windSpeed(st.t);
+  const Pwind_av=(st.wind.stopReset>0)?0:windAvail(vwind);
+
+  const Pload=loadPower(st.t,st.f,st.f0);
+
+  const fpu=(st.f-st.f0)/st.f0;
+  const onlineCap=st.dg.fleet.reduce((a,x)=>a+(x.online?x.cap:0),0);
+  st.Sbase=Math.max(12,Pload,onlineCap);
+
+  const Ppv_limited = limitREByFreq(Ppv_av, st.pv, st.f, st.dfdt, dt);
+  const Pwind_limited = limitREByFreq(Pwind_av, st.wind, st.f, st.dfdt, dt);
+  const residualPre = Math.max(0, Pload - (Ppv_limited + Pwind_limited));
+  const Pdg = dieselDispatch(dt,fpu,residualPre);
+
+  const Pinj_pre=(Pdg+Ppv_limited+Pwind_limited)-Pload;
+  bessControl(dt,fpu,Pinj_pre);
+
+  const Hdiesel=onlineCap*st.dg.HperMW;
+  const Hsys=Math.max(0.5,Hdiesel+st.bess.H);
+  const Pinj=(Pdg+Ppv_limited+Pwind_limited+st.bess.P)-Pload;
+  const Pdamp=-st.alpha*fpu*st.Sbase;
+  const dpu=(Pinj+Pdamp)/st.Sbase;
+  let dfdt=st.f0*(dpu - st.D*fpu)/(2*Hsys);
+  dfdt=clamp(dfdt,-st.rocMax,st.rocMax);
+  st.dfdt = dfdt;
+  st.f+=dfdt*dt;
+
+  const Ppv=Ppv_limited, Pwind=Pwind_limited;
+  st.pv.genWh   += Ppv   * dt/3600;
+  st.wind.genWh += Pwind * dt/3600;
+
+  let remain=Pload, pv2L=Math.min(Ppv,remain); remain-=pv2L;
+  let wind2L=Math.min(Pwind,remain); remain-=wind2L;
+  st.pvDir   += pv2L   * dt/3600;
+  st.windDir += wind2L * dt/3600;
+  const Pb=st.bess.P;
+  const chargeCap=Math.max(0,-Pb);
+  const surplus=Math.max(0,(Ppv-pv2L)+(Pwind-wind2L));
+  const toBess=Math.min(chargeCap,surplus);
+  const curt=surplus-toBess;
+  st.pv.curtWh   += curt * (Ppv/(Ppv+Pwind+1e-9)) * dt/3600;
+  st.wind.curtWh += curt * (Pwind/(Ppv+Pwind+1e-9)) * dt/3600;
+  st.curtWh=st.pv.curtWh+st.wind.curtWh;
+
+  if(st.bess.Emax>0) st.bess.E=clamp(st.bess.E - st.bess.P*dt/3600,0,st.bess.Emax);
+  st.E_load += Pload*dt/3600;
+  st.fuelL  += fuelLH(st.dg.fleet)*dt/3600;
+  st.fuelBaselineL += baselineFuelLitersPerHour(Pload) * dt/3600;
+
+  if(Math.abs(st.f-st.f0)>0.5){ if(!st.freezeReduce){st.freezeReduce=true;st.freezeTimer=300;logLine(`${ts(st.t)} |Δf|>0.5 → freeze stop for 5min`);} }
+  if(st.freezeTimer>0){st.freezeTimer-=dt;if(st.freezeTimer<=0) st.freezeReduce=false;}
+
+  series.push({t:st.t,Ppv,Pwind,Pload,Pdg,Pb:st.bess.P,f:st.f,soc:100*(st.bess.Emax>0?st.bess.E/st.bess.Emax:0)});
+  if(series.length>200000) series.splice(0, Math.floor(series.length*0.5));
+  st.t+=dt;
+}
+
+/* ────────── Window / Plot ────────── */
+function computeWindow(){
+  const Hwin=Math.min(+E.viewHours.value,+E.simHours.value);
+  let Hstart=+E.viewStart.value; const Hsim=+E.simHours.value;
+  if(E.followLive.checked){const tH=st.t/3600; Hstart=clamp(tH-Hwin,0,Math.max(0,Hsim-Hwin)); E.viewStart.value=String(Hstart);}
+  E.viewStart.max=String(Math.max(0,Hsim-Hwin));
+  const ticks=Math.max(3,Math.round(Hwin));
+  return {t0:Hstart*3600,t1:(Hstart+Hwin)*3600,Hwin,Hstart,ticks};
+}
+function updateViewLabel(){
+  const Hwin=+E.viewHours.value,Hstart=+E.viewStart.value;
+  E.viewLabel.textContent=`[${Hstart.toFixed(1)}, ${(Hstart+Hwin).toFixed(1)}] h`;
+}
+function drawSeries(ctx,w,h,xs,ys,color,dashed=false,width=2.5){
+  ctx.beginPath(); if(dashed) ctx.setLineDash([6,6]); else ctx.setLineDash([]);
+  for(let i=0;i<xs.length;i++){ if(i===0) ctx.moveTo(xs[i],ys[i]); else ctx.lineTo(xs[i],ys[i]); }
+  ctx.strokeStyle=color; ctx.lineWidth=width; ctx.stroke(); ctx.setLineDash([]);
+}
+function drawSunMarkers(ctx,w,h,t0,t1){
+  const {rise,set}=sunTimes(st.lat,st.doy); const sr=rise*3600, ss=set*3600;
+  const sx=t=>40+((t-t0)/(t1-t0))*(w-60);
+  ctx.fillStyle='#f59e0b';
+  [sr,ss].forEach(t=>{
+    if(t>=t0&&t<=t1){const x=sx(t);ctx.beginPath();ctx.arc(x,18,4,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#92400e'; ctx.font=`${10*(window.devicePixelRatio||1)}px sans-serif`; ctx.fillText(`${(t/3600).toFixed(1)}h`,x-12,30); ctx.fillStyle='#f59e0b';}
+  });
+}
+function plotPower(ws){
+  if(!started){ setIdleUI(true); return; }
+  const DPR=window.devicePixelRatio||1;
+  const w=E.pPlot.width=Math.floor(E.pPlot.clientWidth*DPR);
+  const h=E.pPlot.height=Math.floor(E.pPlot.clientHeight*DPR);
+  const ctx=PCTX; ctx.clearRect(0,0,w,h); if(series.length<2) return;
+  const {t0,t1,ticks}=ws; const seg=series.filter(d=>d.t>=t0&&d.t<=t1); if(seg.length<2) return;
+  setIdleUI(false);
+  const xs=seg.map(d=>((d.t-t0)/(t1-t0))*(w-60)+40);
+  const allP=seg.flatMap(d=>[d.Ppv,d.Pwind,d.Pload,d.Pdg,d.Pb]);
+  const pmin=Math.min(0,...allP), pmax=Math.max(...allP,1);
+  const y=v=>(1-(v-pmin)/(pmax-pmin||1))*(h-36)+18;
+  ctx.strokeStyle='#f3f4f6'; ctx.lineWidth=1;
+  for(let i=0;i<5;i++){const yy=(i/4)*(h-36)+18; ctx.beginPath(); ctx.moveTo(40,yy); ctx.lineTo(w-12,yy); ctx.stroke();}
+  const y0=y(0); ctx.beginPath(); ctx.moveTo(40,y0); ctx.lineTo(w-12,y0); ctx.setLineDash([5,5]); ctx.strokeStyle='#9ca3af'; ctx.lineWidth=1.2; ctx.stroke(); ctx.setLineDash([]);
+  const segMap=k=>seg.map(d=>y(d[k]));
+  drawSeries(ctx,w,h,xs,segMap('Ppv'),COLORS.pv);
+  drawSeries(ctx,w,h,xs,segMap('Pwind'),COLORS.wind,true);
+  drawSeries(ctx,w,h,xs,segMap('Pload'),COLORS.load);
+  drawSeries(ctx,w,h,xs,segMap('Pdg'),COLORS.diesel);
+  drawSeries(ctx,w,h,xs,segMap('Pb'),COLORS.bess);
+  drawSunMarkers(ctx,w,h,t0,t1);
+  ctx.fillStyle='#374151'; ctx.font=`${11*DPR}px sans-serif`;
+  for(let k=0;k<=ticks;k++){const tk=t0+(k/ticks)*(t1-t0),x=40+(k/ticks)*(w-60);ctx.fillText(`${(tk/3600).toFixed(1)}h`,x-14,h-6);}
+}
+function plotFreq(ws){
+  if(!started){ setIdleUI(true); return; }
+  const DPR=window.devicePixelRatio||1;
+  const w=E.fPlot.width=Math.floor(E.fPlot.clientWidth*DPR);
+  const h=E.fPlot.height=Math.floor(E.fPlot.clientHeight*DPR);
+  const ctx=FCTX; ctx.clearRect(0,0,w,h); if(series.length<2) return;
+  const {t0,t1,ticks}=ws; const seg=series.filter(d=>d.t>=t0&&d.t<=t1); if(seg.length<2) return;
+  setIdleUI(false);
+  const xs=seg.map(d=>((d.t-t0)/(t1-t0))*(w-60)+40);
+  const fVals=seg.map(d=>d.f), sVals=seg.map(d=>d.soc); const f0=st.f0;
+  let fmin=Math.min(...fVals,f0-0.8), fmax=Math.max(...fVals,f0+0.8);
+  if(!isFinite(fmin)||!isFinite(fmax)||fmax-fmin<0.1){ fmin=f0-0.8; fmax=f0+0.8; }
+  const yF=v=>(1-(v-fmin)/(fmax-fmin||1))*(h-36)+18; const yS=v=>(1-(v-0)/(100-0||1))*(h-36)+18;
+  ctx.strokeStyle='#f3f4f6'; ctx.lineWidth=1; for(let i=0;i<5;i++){const yy=(i/4)*(h-36)+18; ctx.beginPath(); ctx.moveTo(40,yy); ctx.lineTo(w-12,yy); ctx.stroke();}
+  const y60=yF(f0); ctx.beginPath(); ctx.moveTo(40,y60); ctx.lineTo(w-12,y60); ctx.setLineDash([]); ctx.strokeStyle='#9ca3af'; ctx.lineWidth=1; ctx.stroke();
+  ctx.fillStyle='#6b7280'; ctx.font=`${10*DPR}px sans-serif`; ctx.fillText('60 Hz', 44, y60-4);
+  drawSeries(ctx,w,h,xs,fVals.map(yF),COLORS.freq);
+  drawSeries(ctx,w,h,xs,sVals.map(yS),'#009E73',true);
+  const last=series[series.length-1]; const df = last.f - st.f0;
+  E.live.textContent=`t=${(last.t/3600).toFixed(2)} h | f=${last.f.toFixed(3)} Hz | Δf=${(df>=0?'+':'')}${df.toFixed(3)} Hz | PV=${last.Ppv.toFixed(2)} MW | Wind=${last.Pwind.toFixed(2)} MW | Diesel=${last.Pdg.toFixed(2)} MW | BESS=${last.Pb.toFixed(2)} MW | SOC=${last.soc.toFixed(1)}% | Load=${last.Pload.toFixed(2)} MW`;
+  E.live.classList.remove('muted');
+  ctx.fillStyle='#374151'; ctx.font=`${11*DPR}px sans-serif`;
+  for(let k=0;k<=ticks;k++){const tk=t0+(k/ticks)*(t1-t0),x=40+(k/ticks)*(w-60);ctx.fillText(`${(tk/3600).toFixed(1)}h`,x-14,h-6);}
+  if(seg.length>2){
+    const fmaxSeg=Math.max(...seg.map(d=>d.f));
+    const fminSeg=Math.min(...seg.map(d=>d.f));
+    const pbMax=Math.max(...seg.map(d=>Math.abs(d.Pb)));
+    E.kpiWin.textContent=`f∈[${fminSeg.toFixed(2)}, ${fmaxSeg.toFixed(2)}] Hz · |BESS|_max=${pbMax.toFixed(2)} MW`;
+  }
+}
+
+/* ────────── KPI refresh ────────── */
+function refreshKPI(){
+  if(!started){ return; }
+  E.kpiFuel.textContent=fmt(st.fuelL,"L");
+  E.kpiFuelBase.textContent=fmt(st.fuelBaselineL,"L");
+  const saved = Math.max(0, st.fuelBaselineL - st.fuelL);
+  E.kpiFuelSave.textContent=fmt(saved,"L");
+  const E_RE=st.pvDir+st.windDir; E.kpiRE.textContent=fmt(st.E_load>0?100*E_RE/st.E_load:0,"%");
+  E.kpiCurt.textContent=fmt(st.curtWh,"MWh");
+  E.kpiN1.textContent=st.n1_ok?"OK":"Not Met";
+  E.kpiPVgen.textContent=fmt(st.pv.genWh,"MWh");
+  E.kpiWDgen.textContent=fmt(st.wind.genWh,"MWh");
+  E.kpiTrips.textContent = `${st.pv.trips||0} / ${st.wind.trips||0}`;
+  E.kpiReclose.textContent = `${st.pv.recloses||0} / ${st.wind.recloses||0}`;
+}
+
+/* ────────── Loop ────────── */
+function loop(){
+  if(!running) return;
+  if (st.t >= st.T) { running=false; refreshKPI(); return; }
+  step();
+  windowState = computeWindow();
+  plotPower(windowState);
+  plotFreq(windowState);
+  refreshKPI();
+  requestAnimationFrame(loop);
+}
+
+/* ────────── Interactions ────────── */
+E.startBtn.onclick=()=>{
+  if(!running){
+    if(!started){ initState(); started=true; setIdleUI(false); }
+    running=true;
+    requestAnimationFrame(loop);
+  }
+};
+E.pauseBtn.onclick=()=>{ running=false; };
+E.resetBtn.onclick=()=>{ running=false; started=false; initState(); };
+function onViewChange(){ updateViewLabel(); windowState=computeWindow(); plotPower(windowState); plotFreq(windowState); }
+E.viewHours.addEventListener('input', onViewChange);
+E.viewStart.addEventListener('input', ()=>{ E.followLive.checked=false; onViewChange(); });
+E.followLive.addEventListener('change', onViewChange);
+window.addEventListener('resize', ()=>{ windowState=computeWindow(); plotPower(windowState); plotFreq(windowState); });
+
+/* ────────── Presets ────────── */
+E.geoPreset.addEventListener('change', ()=>{
+  const p=E.geoPreset.value;
+  if(p==='arctic'){E.latDeg.value=70;E.doy.value=10;}
+  else if(p==='desert'){E.latDeg.value=25;E.doy.value=172;}
+  else if(p==='africa'){E.latDeg.value=10;E.doy.value=100;}
+  else if(p==='andes'){E.latDeg.value=-20;E.doy.value=300;}
+});
+
+/* ────────── Boot ────────── */
+document.getElementById('yearNow').textContent = String(new Date().getFullYear());
+initState();
+applyI18n();
+setIdleUI(true);
+})();
+</script>
+</body>
+</html>
