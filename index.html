@@ -1210,20 +1210,30 @@ function attemptReclose(){
    11) Main step
 ============================== */
 function computeDt(){
+  // Global slow-down factor (simulation speed)
+  const SPEED = 0.2;   // 1.0 = 原速度，0.2 = 慢 5 倍，0.1 = 慢 10 倍
+
   // If within dtWinSec of any major switching event time, use dtEvent
   const t = ST.t;
   const win = ST.dtWin;
-  const dtBase = ST.dtBase, dtEvent=ST.dtEvent;
-  for(let i=ST.evIndex;i<ST.events.length && i<ST.evIndex+5;i++){
-    const ev=ST.events[i];
-    const type=ev.type;
-    if(type==="pcc_open" || type==="pcc_close" || type==="motor_start"){
-      const te=+ev.t_s||0;
-      if(Math.abs(te - t) <= win) return dtEvent;
+  const dtBase  = ST.dtBase;
+  const dtEvent = ST.dtEvent;
+
+  for(let i = ST.evIndex; i < ST.events.length && i < ST.evIndex + 5; i++){
+    const ev = ST.events[i];
+    const type = ev.type;
+
+    if(type === "pcc_open" || type === "pcc_close" || type === "motor_start"){
+      const te = +ev.t_s || 0;
+      if(Math.abs(te - t) <= win){
+        return dtEvent * SPEED;
+      }
     }
   }
-  return dtBase;
+
+  return dtBase * SPEED;
 }
+
 
 function loadAtBusMWQ(busId, f, Vpu){
   // Base loads from topology
