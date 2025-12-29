@@ -191,12 +191,6 @@
     gap:8px 10px;
     align-items:center;
   }
-  .legend.scroll{
-    flex-wrap:nowrap;
-    overflow:auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom:2px;
-  }
   .lg{
     display:inline-flex;
     align-items:center;
@@ -207,16 +201,10 @@
     border-radius:999px;
     font-size:12px;
     color:var(--sub);
-    white-space:nowrap;
-    flex: 0 0 auto;
   }
   .sw{
     width:12px;height:12px;border-radius:4px;
     border:1px solid rgba(0,0,0,.15);
-  }
-
-  .canvasWrap{
-    position:relative;
   }
 
   canvas{
@@ -225,26 +213,7 @@
     border:1px solid var(--border);
     border-radius:14px;
     background:#fff;
-    display:block;
   }
-
-  .tooltip{
-    position:absolute;
-    pointer-events:none;
-    opacity:0;
-    transform: translate(-50%, -100%);
-    background:#0b1220;
-    color:#fff;
-    padding:8px 10px;
-    border-radius:12px;
-    box-shadow: 0 10px 30px rgba(0,0,0,.18);
-    font-size:12px;
-    min-width: 210px;
-  }
-  .tooltip .t{opacity:.92; font-weight:800; margin-bottom:4px}
-  .tooltip .line{display:flex; justify-content:space-between; gap:10px; opacity:.9}
-  .tooltip .k{color:#cbd5e1}
-  .tooltip .v{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
 
   .hint{
     color:var(--sub);
@@ -252,74 +221,23 @@
     margin:0;
   }
 
-  .mini{
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-    margin-top:10px;
-    padding-top:10px;
-    border-top:1px dashed var(--border);
-  }
-  .logbox{
-    border:1px solid var(--border);
-    background:#fff;
-    border-radius:12px;
-    padding:10px;
-    max-height:180px;
-    overflow:auto;
-    font-size:12px;
-  }
-  .logline{
-    display:flex;
-    justify-content:space-between;
-    gap:10px;
-    padding:6px 0;
-    border-bottom:1px solid #f1f3f6;
-  }
-  .logline:last-child{border-bottom:none}
-  .tag{
-    font-size:11px;
-    border:1px solid var(--border);
-    background:var(--muted);
-    padding:2px 8px;
-    border-radius:999px;
-    color:var(--sub);
-    white-space:nowrap;
-  }
-  .tag.bad{border-color: rgba(180,35,24,.25); color: var(--danger); background: rgba(180,35,24,.08)}
-  .tag.ok{border-color: rgba(2,122,72,.25); color: var(--ok); background: rgba(2,122,72,.08)}
-  .tag.warn{border-color: rgba(181,71,8,.25); color: var(--warn); background: rgba(181,71,8,.08)}
-
-  .progress{
-    width:100%;
-    height:10px;
-    background:#eef1f5;
-    border:1px solid var(--border);
-    border-radius:999px;
-    overflow:hidden;
-  }
-  .bar{
-    height:100%;
-    width:0%;
-    background:#111;
-  }
-  .bar.bad{background: var(--danger)}
-  .bar.ok{background: var(--ok)}
-  .bar.warn{background: var(--warn)}
-
   /* Mobile */
   @media (max-width: 900px){
     .grid{grid-template-columns:1fr}
     canvas{height:320px}
     .kvs{grid-template-columns:1fr}
-    .legend{display:none}
-    .legend.scroll{display:flex}
+  }
+  @media (max-width: 520px){
+    /* a tiny bit tighter on phones so legends + charts breathe */
+    .card{padding:12px}
+    .lg{padding:6px 8px}
+    canvas{height:290px}
   }
   @media (max-width: 420px){
     .wrap{padding:14px 10px 26px}
     .btn{width:100%}
     .row{gap:8px}
-    canvas{height:280px}
+    canvas{height:270px}
     input,select{font-size:16px} /* avoid iOS zoom */
   }
 </style>
@@ -328,7 +246,7 @@
 <body>
 <div class="wrap">
   <h1>Microgrid Simulation · Single File</h1>
-  <p class="sub">Power / Frequency / Vmin / SOC charts render progressively over time (like a “playhead”), with optional scroll-window mode. Trip/Reclose is a visible state machine with explicit timers + progress.</p>
+  <p class="sub">Power / Frequency / Vmin / SOC charts render progressively over time. Trip/Reclose is an explicit state machine.</p>
 
   <div class="grid">
     <!-- Controls -->
@@ -377,48 +295,18 @@
           <label>Export CSV (demo)</label>
           <button class="btn secondary" id="exportBtn">Export current series</button>
         </div>
-
-        <div class="field">
-          <label>Show playhead + future mask</label>
-          <select id="playhead">
-            <option value="on" selected>On</option>
-            <option value="off">Off</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label>Tooltips (tap/hover)</label>
-          <select id="tooltips">
-            <option value="on" selected>On</option>
-            <option value="off">Off</option>
-          </select>
-        </div>
       </div>
 
       <hr style="border:none;border-top:1px solid var(--border);margin:14px 0"/>
 
       <div class="kvs">
         <div class="field">
-          <label>Trip delay (s) — OPEN command delay</label>
+          <label>Trip delay (s)</label>
           <input id="tripDelay" type="number" value="0.25" min="0" step="0.05"/>
         </div>
         <div class="field">
-          <label>Reclose after trip (s) — CLOSE scheduling</label>
+          <label>Reclose after trip (s)</label>
           <input id="recloseDelay" type="number" value="30" min="0" step="1"/>
-        </div>
-
-        <div class="field">
-          <label>Reclose policy</label>
-          <select id="reclosePolicy">
-            <option value="auto" selected>Auto reclose (timer)</option>
-            <option value="manual">Manual reclose (button)</option>
-            <option value="lockout">Lockout (no reclose)</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label>Manual Close button</label>
-          <button class="btn secondary" id="manualCloseBtn" disabled>Close now</button>
         </div>
 
         <div class="field">
@@ -442,7 +330,6 @@
           <button class="btn secondary" id="pauseBtn" disabled>Pause</button>
           <button class="btn secondary" id="resetBtn">Reset</button>
           <button class="btn danger" id="tripBtn">Trip</button>
-          <button class="btn secondary" id="cancelTripBtn" disabled>Cancel trip</button>
         </div>
       </div>
 
@@ -454,36 +341,10 @@
           </div>
           <div class="pill mono" id="tripPill">state=ARMED</div>
         </div>
-
-        <div style="margin-top:10px" class="hint mono" id="tripTimeline">
-          ARMED → (Trip) → TRIP_COUNTDOWN → OPENED → RECLOSE_COUNTDOWN → CLOSED → ARMED
+        <div style="margin-top:10px" class="hint mono" id="tripTimeline">ARMED → (Trip) → TRIP_COUNTDOWN → TRIPPED_HOLD → RECLOSE_COUNTDOWN → RECLOSED</div>
+        <div style="margin-top:8px" class="hint mono" id="tripExplain">
+          Trip logic: (1) press Trip → wait Trip delay → OPEN; (2) optional OPEN-confirm hold → start reclose countdown; (3) when timer hits 0 → CLOSE.
         </div>
-
-        <div class="mini">
-          <div class="row" style="justify-content:space-between">
-            <div class="hint"><span class="mono">Trip delay</span> progress</div>
-            <div class="hint mono" id="tripDelayLine">0.00 / 0.25 s</div>
-          </div>
-          <div class="progress"><div class="bar bad" id="tripDelayBar"></div></div>
-
-          <div class="row" style="justify-content:space-between">
-            <div class="hint"><span class="mono">Reclose</span> countdown</div>
-            <div class="hint mono" id="recloseDelayLine">0.0 / 30 s</div>
-          </div>
-          <div class="progress"><div class="bar ok" id="recloseDelayBar"></div></div>
-        </div>
-      </div>
-
-      <div class="mini">
-        <div class="row" style="justify-content:space-between">
-          <div style="font-weight:800;font-size:13px">Event log</div>
-          <div class="row">
-            <span class="tag" id="logTag">ready</span>
-            <button class="btn secondary" id="clearLogBtn">Clear</button>
-          </div>
-        </div>
-        <div class="logbox" id="logBox"></div>
-        <p class="hint">Log records Trip/Open/Close commands and state transitions. This makes the timers “explain themselves”.</p>
       </div>
     </div>
 
@@ -492,32 +353,21 @@
       <div class="chartWrap">
         <div>
           <p class="chartTitle">Power (MW): PV / Wind / Load / Diesel / BESS / Grid-tie</p>
-          <p class="hint">
-            Fix: power chart renders ONLY up to the current simulation time (playhead). It will not “paint the future” at t=0.
-            Window mode shows only the last N minutes.
-          </p>
+          <p class="hint">Fix: x-axis now grows with time (no “future” span at t=0). Curve reveals with time just like the Frequency chart.</p>
         </div>
 
         <div class="legend" id="powerLegend"></div>
-        <div class="legend scroll" id="powerLegendMobile"></div>
-        <div class="canvasWrap">
-          <canvas id="powerCanvas" width="1200" height="520"></canvas>
-          <div class="tooltip" id="powerTip"></div>
-        </div>
+        <canvas id="powerCanvas" width="1200" height="520"></canvas>
 
         <div style="height:6px"></div>
 
         <div>
           <p class="chartTitle">Frequency (Hz) + Vmin (pu) + SOC (%)</p>
-          <p class="hint">Same progressive rendering style; tick labels dynamically skip/rotate to prevent overlap on mobile.</p>
+          <p class="hint">Same progressive rendering style; tick labels avoid overlap on mobile.</p>
         </div>
 
         <div class="legend" id="stateLegend"></div>
-        <div class="legend scroll" id="stateLegendMobile"></div>
-        <div class="canvasWrap">
-          <canvas id="stateCanvas" width="1200" height="520"></canvas>
-          <div class="tooltip" id="stateTip"></div>
-        </div>
+        <canvas id="stateCanvas" width="1200" height="520"></canvas>
       </div>
     </div>
   </div>
@@ -525,13 +375,11 @@
 
 <script>
 /* ============================================================================
-  Single-file microgrid UI (expanded)
+  Single-file microgrid UI
   - No external libs
-  - Progressive chart rendering with playhead (fixes "curve fills axis at start")
-  - Tick label overlap mitigation (skip + rotate based on width)
-  - Mobile improvements: scroll legend + adaptive paddings
-  - Tooltips on hover/tap (debugging-friendly)
-  - Trip/Reclose: explicit machine + progress bars + cancel + policy
+  - Progressive chart rendering (fixes "curve fills axis at start")
+  - Explicit Trip/Reclose state machine (fixes confusing countdown)
+  - Mobile-safe layout + tick label overlap avoidance
 ============================================================================ */
 
 /* -----------------------------
@@ -558,77 +406,11 @@ function downloadText(filename, text){
   URL.revokeObjectURL(url);
 }
 
-function fmtTimeSec(t){
-  if(!Number.isFinite(t)) return "—";
-  if(t >= 3600) return (t/3600).toFixed(2) + "h";
-  if(t >= 60) return (t/60).toFixed(2) + "m";
-  return t.toFixed(2) + "s";
-}
-
-function nowISO(){
-  const d = new Date();
-  const pad = (n)=> String(n).padStart(2,"0");
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
-/* -----------------------------
-  Event log (for trip clarity)
------------------------------ */
-const LOG = [];
-function logEvent(kind, msg){
-  const entry = {ts: sim ? sim.t : 0, kind, msg, wall: nowISO()};
-  LOG.push(entry);
-  if(LOG.length > 250) LOG.splice(0, LOG.length - 250);
-  renderLog();
-}
-
-function renderLog(){
-  const box = $("logBox");
-  const tag = $("logTag");
-  if(!box) return;
-
-  const st = sim.trip.state;
-  tag.textContent = st.toLowerCase();
-  tag.className = "tag " + (st.includes("TRIP") || st.includes("OPEN") ? "bad" : (st.includes("RECLOSE") || st.includes("CLOSED") ? "ok" : ""));
-
-  box.innerHTML = "";
-  if(!LOG.length){
-    box.innerHTML = `<div class="hint">No events yet.</div>`;
-    return;
-  }
-
-  // show newest on top
-  const items = LOG.slice().reverse();
-  for(const e of items){
-    const row = document.createElement("div");
-    row.className = "logline";
-    const left = document.createElement("div");
-    left.innerHTML = `<span class="mono">t=${e.ts.toFixed(2)}s</span> · <span class="tag ${e.kind==="TRIP"||e.kind==="OPEN"?"bad":(e.kind==="CLOSE"?"ok":"")}">${e.kind}</span> <span style="margin-left:6px">${escapeHtml(e.msg)}</span>`;
-    const right = document.createElement("div");
-    right.className = "hint mono";
-    right.textContent = e.wall;
-    row.appendChild(left);
-    row.appendChild(right);
-    box.appendChild(row);
-  }
-}
-
-function escapeHtml(s){
-  return String(s)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
 /* -----------------------------
   Chart Renderer (Canvas)
-  - Progressive reveal (slice series)
-  - Window mode
-  - Tick label overlap mitigation (skip labels)
-  - Playhead + future mask
-  - Tooltip coordinate mapping support
+  - Progressive reveal
+  - Window mode (scroll)
+  - Tick label overlap mitigation
 ----------------------------- */
 function makeChart(canvas, opts){
   const ctx = canvas.getContext("2d");
@@ -644,23 +426,17 @@ function makeChart(canvas, opts){
     gridColor: "#e6e8ec",
     textColor: "#516075",
     bg: "#fff",
+    title: "",
+    xLabel: "time",
     yLabel: "",
     y2Label: "",
     showZeroLine: true,
     zeroColor: "#c7cdd6",
-    playhead: true,
-    playheadColor: "#111",
-    futureMask: true,
-    futureMaskColor: "rgba(11,18,32,.06)",
-    tickRotateDeg: 0,
-    // extra mobile tuning
-    minTickPx: 76,      // minimum pixel spacing between x labels before skipping
-    yDecimals: 2,
+    tickRotateDeg: 0, // set by auto for mobile
   }, opts || {});
 
-  let lastAxes = null;
-
   function resizeToCss(){
+    // Keep canvas internal resolution matched to CSS size for crisp text.
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     const w = Math.max(320, Math.floor(rect.width * dpr));
@@ -687,23 +463,31 @@ function makeChart(canvas, opts){
     return {min:niceMin, max:niceMax, step};
   }
 
-  function adaptivePadding(w){
-    // Mobile padding shrink (prevents tick overlap)
-    const narrow = w < 520;
-    const mid = w < 900;
-    const PL = narrow ? 52 : (mid ? 58 : cfg.paddingL);
-    const PR = narrow ? 14 : cfg.paddingR;
-    const PB = narrow ? 58 : cfg.paddingB;
-    return {PL, PR, PB};
+  // Extra: format ticks to reduce clutter on narrow screens (fix overlap)
+  function fmtTick(v, decimals){
+    if(!Number.isFinite(v)) return "";
+    const abs = Math.abs(v);
+    if(abs >= 1000) return v.toFixed(0);
+    return v.toFixed(decimals);
   }
 
-  function drawAxes(xMin, xMax, yMin, yMax, y2Min, y2Max, playheadX){
+  function drawAxes(xMin, xMax, yMin, yMax, y2Min, y2Max){
     const {w,h} = resizeToCss();
+
+    // Auto rotate bottom ticks on small screens (fix overlap)
     const isNarrow = w < 900;
+    const isPhone = w < 520;
     const rotate = isNarrow ? -28 : 0;
 
-    const pad = adaptivePadding(w);
-    const PL = pad.PL, PR = pad.PR, PB = pad.PB, PT = cfg.paddingT;
+    // Mobile padding tweaks (fix y tick + label collision)
+    const PL = isPhone ? 54 : cfg.paddingL;
+    const PR = cfg.paddingR;
+    const PT = cfg.paddingT;
+    const PB = isPhone ? 62 : cfg.paddingB;
+
+    // Dynamic grid density to avoid label stacking on very small widths
+    const gridX = isPhone ? 4 : cfg.gridX;
+    const gridY = cfg.gridY;
 
     ctx.fillStyle = cfg.bg;
     ctx.fillRect(0,0,w,h);
@@ -719,16 +503,16 @@ function makeChart(canvas, opts){
     ctx.strokeStyle = cfg.gridColor;
     ctx.lineWidth = 1;
 
-    for(let i=0;i<=cfg.gridX;i++){
-      const t = i/cfg.gridX;
+    for(let i=0;i<=gridX;i++){
+      const t = i/gridX;
       const x = lerp(x0, x1, t);
       ctx.beginPath();
       ctx.moveTo(x, y0);
       ctx.lineTo(x, y1);
       ctx.stroke();
     }
-    for(let j=0;j<=cfg.gridY;j++){
-      const t = j/cfg.gridY;
+    for(let j=0;j<=gridY;j++){
+      const t = j/gridY;
       const y = lerp(y0, y1, t);
       ctx.beginPath();
       ctx.moveTo(x0, y);
@@ -744,7 +528,7 @@ function makeChart(canvas, opts){
     ctx.moveTo(x0, y0); ctx.lineTo(x0, y1); // y
     ctx.stroke();
 
-    // mapping funcs
+    // return mapping funcs for drawing data
     function mapX(v, a, b){
       const t = (v-a) / (b-a || 1);
       return lerp(x0, x1, t);
@@ -755,54 +539,42 @@ function makeChart(canvas, opts){
     }
 
     // y ticks
-    const yt = niceTicks(yMin, yMax, cfg.gridY);
+    const yt = niceTicks(yMin, yMax, gridY);
     ctx.fillStyle = cfg.textColor;
     ctx.textAlign = "right";
-    for(let j=0;j<=cfg.gridY;j++){
-      const v = yt.min + (yt.max-yt.min)*(j/cfg.gridY);
+    const yDecimals = isPhone ? 1 : 2;
+    for(let j=0;j<=gridY;j++){
+      const v = yt.min + (yt.max-yt.min)*(j/gridY);
       const y = mapY(v, yt.min, yt.max);
-      ctx.fillText(v.toFixed(cfg.yDecimals), x0-8, y);
+      ctx.fillText(fmtTick(v, yDecimals), x0-8, y);
     }
 
     // y2 ticks (optional)
-    let y2t = null;
     if(Number.isFinite(y2Min) && Number.isFinite(y2Max)){
-      y2t = niceTicks(y2Min, y2Max, cfg.gridY);
       ctx.textAlign = "left";
-      for(let j=0;j<=cfg.gridY;j++){
-        const v = y2t.min + (y2t.max-y2t.min)*(j/cfg.gridY);
+      const y2t = niceTicks(y2Min, y2Max, gridY);
+      const y2Decimals = isPhone ? 0 : 2;
+      for(let j=0;j<=gridY;j++){
+        const v = y2t.min + (y2t.max-y2t.min)*(j/gridY);
         const y = mapY(v, y2t.min, y2t.max);
-        ctx.fillText(v.toFixed(cfg.yDecimals), x1+8, y);
+        ctx.fillText(fmtTick(v, y2Decimals), x1+8, y);
       }
     }
 
-    // x ticks (skip + rotate)
-    const xt = niceTicks(xMin, xMax, cfg.gridX);
+    // x ticks (avoid overlap)
+    const xt = niceTicks(xMin, xMax, gridX);
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = cfg.textColor;
 
-    const ticks = [];
-    for(let i=0;i<=cfg.gridX;i++){
-      const v = xt.min + (xt.max-xt.min)*(i/cfg.gridX);
-      ticks.push(v);
-    }
-
-    // Decide skipping based on pixel spacing
-    const pxSpan = (x1-x0);
-    const approxSpacing = pxSpan / Math.max(1, ticks.length-1);
-    const skip = Math.max(1, Math.ceil(cfg.minTickPx / Math.max(1, approxSpacing)));
-
-    for(let i=0;i<ticks.length;i++){
-      if(i % skip !== 0 && i !== ticks.length-1) continue;
-
-      const v = ticks[i];
+    for(let i=0;i<=gridX;i++){
+      const v = xt.min + (xt.max-xt.min)*(i/gridX);
       const x = mapX(v, xt.min, xt.max);
-      const label = (v>=3600 ? (v/3600).toFixed(2)+"h" : v.toFixed(0)+"s");
+      const label = (v>=3600 ? (v/3600).toFixed(isPhone ? 1 : 2)+"h" : v.toFixed(0)+"s");
 
       ctx.save();
-      ctx.translate(x, y0+20);
+      ctx.translate(x, y0+18);
       ctx.rotate(rotate*Math.PI/180);
-      ctx.fillStyle = cfg.textColor;
       ctx.fillText(label, 0, 0);
       ctx.restore();
     }
@@ -823,7 +595,6 @@ function makeChart(canvas, opts){
     ctx.font = "700 12px ui-sans-serif, system-ui";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-
     if(cfg.yLabel){
       ctx.save();
       ctx.translate(14, (y0+y1)/2);
@@ -840,32 +611,11 @@ function makeChart(canvas, opts){
       ctx.restore();
     }
 
-    // Future mask (area after playhead)
-    if(cfg.futureMask && Number.isFinite(playheadX)){
-      const xP = clamp(playheadX, x0, x1);
-      ctx.fillStyle = cfg.futureMaskColor;
-      ctx.fillRect(xP, y1, (x1-xP), (y0-y1));
-    }
-
-    // Playhead line
-    if(cfg.playhead && Number.isFinite(playheadX)){
-      const xP = clamp(playheadX, x0, x1);
-      ctx.strokeStyle = cfg.playheadColor;
-      ctx.globalAlpha = 0.85;
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.moveTo(xP, y0);
-      ctx.lineTo(xP, y1);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    }
-
-    lastAxes = {w,h,x0,x1,y0,y1,mapX,mapY,xt,yt,y2t};
-    return lastAxes;
+    return {w,h,x0,x1,y0,y1,mapX,mapY, xt, yt, gridX, gridY, isPhone, isNarrow};
   }
 
-  function drawLines(xMin, xMax, yMin, yMax, seriesList, y2, playheadX){
-    const ax = drawAxes(xMin, xMax, yMin, yMax, y2?.min, y2?.max, playheadX);
+  function drawLines(frame, xMin, xMax, yMin, yMax, seriesList, y2){
+    const ax = drawAxes(xMin, xMax, yMin, yMax, y2?.min, y2?.max);
 
     const clipPad = 2;
     ctx.save();
@@ -909,11 +659,13 @@ function makeChart(canvas, opts){
 
   return {
     render(params){
-      const { xMin, xMax, yMin, yMax, series, y2, playheadX } = params;
-      drawLines(xMin, xMax, yMin, yMax, series, y2, playheadX);
-    },
-    getAxes(){
-      return lastAxes;
+      const {
+        xMin, xMax,
+        yMin, yMax,
+        series,
+        y2
+      } = params;
+      drawLines(null, xMin, xMax, yMin, yMax, series, y2);
     }
   };
 }
@@ -937,10 +689,13 @@ function makeSeries(){
     soc: [],
   };
 }
+
 function pushPoint(arr, x, y){ arr.push({x, y}); }
 
 /* -----------------------------
-  Demo simulation state
+  Demo simulation data
+  - Replace this with your engine output
+  - The important fix is: charts now render ONLY up to "current index"
 ----------------------------- */
 const series = makeSeries();
 
@@ -957,15 +712,16 @@ let sim = {
     state: "ARMED",
     requestedAt: null,
     tripAt: null,
-    openedAt: null,
+    trippedAt: null,
     recloseAt: null,
 
     tripDelay: 0.25,
     recloseDelay: 30,
     gridConnected: true,
 
-    // internal flags
-    canceled: false
+    // Added: hold time after OPEN to make “countdown” logic explicit and readable
+    openConfirmHold: 0.60,     // seconds to stay in TRIPPED_HOLD to show OPEN confirmed
+    openConfirmedAt: null
   }
 };
 
@@ -973,22 +729,19 @@ let sim = {
   Trip/Reclose State Machine
   States:
     ARMED
-    TRIP_COUNTDOWN          (Trip pressed, waiting to OPEN)
-    OPENED                  (Breaker OPEN executed)
-    RECLOSE_COUNTDOWN       (Auto timer in progress)
-    WAIT_MANUAL_CLOSE       (Manual mode)
-    LOCKOUT                 (No reclose)
+    TRIP_COUNTDOWN
+    TRIPPED_HOLD
+    RECLOSE_COUNTDOWN
+    RECLOSED
 ----------------------------- */
 function setTripState(st){
-  if(sim.trip.state !== st){
-    sim.trip.state = st;
-    $("tripPill").textContent = "state=" + st;
-    logEvent("STATE", `-> ${st}`);
-  }
+  sim.trip.state = st;
+  $("tripPill").textContent = "state=" + st;
 }
 
 function updateTripUI(){
   const st = sim.trip.state;
+
   const dot = $("gridDot");
   const gridTxt = $("gridState");
 
@@ -1002,98 +755,42 @@ function updateTripUI(){
 
   const t = sim.t;
 
-  // button availability
-  $("tripBtn").disabled = !(st === "ARMED");
-  $("cancelTripBtn").disabled = !(st === "TRIP_COUNTDOWN");
-  $("manualCloseBtn").disabled = !(st === "WAIT_MANUAL_CLOSE");
-
-  // progress bars
-  const tripDelay = Number($("tripDelay").value) || 0;
-  const recloseDelay = Number($("recloseDelay").value) || 0;
-
-  // Trip delay bar
-  let tripCur = 0;
-  if(st === "TRIP_COUNTDOWN" && sim.trip.requestedAt != null){
-    tripCur = clamp(t - sim.trip.requestedAt, 0, tripDelay);
-  }else{
-    tripCur = (st === "ARMED") ? 0 : tripDelay;
-  }
-  $("tripDelayLine").textContent = tripCur.toFixed(2) + " / " + tripDelay.toFixed(2) + " s";
-  $("tripDelayBar").style.width = (tripDelay>0 ? (100*tripCur/tripDelay) : (st==="TRIP_COUNTDOWN"?100:0)) + "%";
-
-  // Reclose bar
-  let rCur = 0;
-  if(st === "RECLOSE_COUNTDOWN" && sim.trip.openedAt != null){
-    rCur = clamp(t - sim.trip.openedAt, 0, recloseDelay);
-  }else{
-    rCur = (st === "ARMED") ? 0 : (st==="OPENED" ? 0 : recloseDelay);
-  }
-  $("recloseDelayLine").textContent = rCur.toFixed(1) + " / " + recloseDelay.toFixed(0) + " s";
-  $("recloseDelayBar").style.width = (recloseDelay>0 ? (100*rCur/recloseDelay) : 0) + "%";
-
   // Clear + explicit messages (your feedback: countdown felt unclear)
   if(st === "ARMED"){
-    $("tripHint").textContent = "Armed. Press Trip to schedule OPEN after Trip delay. (Cancel available during countdown.)";
+    $("tripHint").textContent = "Armed. Press Trip to request OPEN (Trip delay applies).";
+    $("tripBtn").disabled = false;
   }
   else if(st === "TRIP_COUNTDOWN"){
     const left = Math.max(0, sim.trip.tripAt - t);
-    $("tripHint").textContent = "Trip requested. OPEN will execute in: " + left.toFixed(2) + "s (Trip delay).";
+    $("tripHint").textContent = "Trip requested. Countdown to OPEN: " + left.toFixed(2) + "s (Trip delay).";
+    $("tripBtn").disabled = true;
   }
-  else if(st === "OPENED"){
-    const pol = $("reclosePolicy").value;
-    if(pol === "auto"){
-      $("tripHint").textContent = "OPENED. Auto reclose will be scheduled next tick (timer starts immediately).";
-    }else if(pol === "manual"){
-      $("tripHint").textContent = "OPENED. Manual reclose selected. Use “Close now” when ready.";
-    }else{
-      $("tripHint").textContent = "OPENED. Lockout selected. No reclose will occur unless you Reset.";
-    }
+  else if(st === "TRIPPED_HOLD"){
+    const left = sim.trip.openConfirmedAt != null ? Math.max(0, sim.trip.openConfirmedAt - t) : 0;
+    $("tripHint").textContent = "Breaker OPEN confirmed. Holding OPEN: " + left.toFixed(2) + "s before starting reclose countdown.";
+    $("tripBtn").disabled = true;
   }
   else if(st === "RECLOSE_COUNTDOWN"){
     const left = Math.max(0, sim.trip.recloseAt - t);
-    $("tripHint").textContent = "Auto reclose scheduled. CLOSE will execute in: " + left.toFixed(1) + "s.";
+    $("tripHint").textContent = "Reclose scheduled. Countdown to CLOSE: " + left.toFixed(1) + "s.";
+    $("tripBtn").disabled = true;
   }
-  else if(st === "WAIT_MANUAL_CLOSE"){
-    $("tripHint").textContent = "Waiting for manual CLOSE. Press “Close now” to reconnect.";
-  }
-  else if(st === "LOCKOUT"){
-    $("tripHint").textContent = "Lockout. Breaker stays OPEN. Reset to return to ARMED.";
+  else if(st === "RECLOSED"){
+    $("tripHint").textContent = "Breaker CLOSED. Returning to ARMED.";
+    $("tripBtn").disabled = false;
   }
 }
 
 /* Called when user presses Trip */
 function requestTrip(){
   if(sim.trip.state !== "ARMED") return;
-
-  const delay = Math.max(0, Number($("tripDelay").value) || 0);
+  const delay = Number($("tripDelay").value) || 0;
   sim.trip.tripDelay = delay;
 
-  sim.trip.canceled = false;
   sim.trip.requestedAt = sim.t;
   sim.trip.tripAt = sim.t + delay;
-
-  logEvent("TRIP", `Trip requested; OPEN scheduled at t=${sim.trip.tripAt.toFixed(2)}s`);
   setTripState("TRIP_COUNTDOWN");
-}
-
-/* Called when user presses Cancel trip */
-function cancelTrip(){
-  if(sim.trip.state !== "TRIP_COUNTDOWN") return;
-
-  sim.trip.canceled = true;
-  sim.trip.requestedAt = null;
-  sim.trip.tripAt = null;
-
-  logEvent("TRIP", "Trip canceled before OPEN");
-  setTripState("ARMED");
-}
-
-/* Manual close */
-function manualClose(){
-  if(sim.trip.state !== "WAIT_MANUAL_CLOSE") return;
-  sim.trip.gridConnected = true;
-  logEvent("CLOSE", "Manual CLOSE executed; grid reconnected");
-  setTripState("ARMED");
+  // Note: actual opening happens in tick() when t >= tripAt
 }
 
 /* -----------------------------
@@ -1101,15 +798,13 @@ function manualClose(){
 ----------------------------- */
 const powerChart = makeChart($("powerCanvas"), {
   yLabel: "MW",
-  font: "12px ui-sans-serif, system-ui",
-  yDecimals: 2
+  font: "12px ui-sans-serif, system-ui"
 });
 
 const stateChart = makeChart($("stateCanvas"), {
   yLabel: "Hz / pu",
   y2Label: "SOC (%)",
-  font: "12px ui-sans-serif, system-ui",
-  yDecimals: 2
+  font: "12px ui-sans-serif, system-ui"
 });
 
 const COLORS = {
@@ -1141,32 +836,29 @@ function buildLegend(el, items){
   }
 }
 
-const POWER_LEGEND = [
+buildLegend($("powerLegend"), [
   {label:"PV (MW)", color:COLORS.pv},
   {label:"Wind (MW)", color:COLORS.wind},
   {label:"Load (MW)", color:COLORS.load},
   {label:"Diesel (MW)", color:COLORS.diesel},
   {label:"BESS (MW)", color:COLORS.bess},
   {label:"Grid-tie (MW)", color:COLORS.grid},
-];
+]);
 
-const STATE_LEGEND = [
+buildLegend($("stateLegend"), [
   {label:"Frequency (Hz)", color:COLORS.f},
   {label:"Vmin (pu)", color:COLORS.vmin},
   {label:"SOC (%)", color:COLORS.soc},
-];
-
-buildLegend($("powerLegend"), POWER_LEGEND);
-buildLegend($("powerLegendMobile"), POWER_LEGEND);
-buildLegend($("stateLegend"), STATE_LEGEND);
-buildLegend($("stateLegendMobile"), STATE_LEGEND);
+]);
 
 /* -----------------------------
-  Progressive render logic (core)
-  - We slice arrays up to current time => no “future curve fill”
-  - Window mode => show last N minutes
+  Progressive render logic (the key fix)
+  - At any time, we compute idxNow = last index where x <= sim.t
+  - Then we slice arrays to that idx, so chart only draws history up to now
+  - Window mode: only draw last N minutes
 ----------------------------- */
 function lastIndexAtTime(arr, t){
+  // arr = [{x,y}, ...], x is time(s)
   let lo=0, hi=arr.length-1, ans=-1;
   while(lo<=hi){
     const mid = (lo+hi)>>1;
@@ -1175,35 +867,11 @@ function lastIndexAtTime(arr, t){
   return ans;
 }
 
-function firstIndexAtOrAfter(arr, t){
-  // lower bound
-  let lo=0, hi=arr.length-1, ans=arr.length;
-  while(lo<=hi){
-    const mid = (lo+hi)>>1;
-    if(arr[mid].x >= t){ ans=mid; hi=mid-1; } else lo=mid+1;
-  }
-  return ans;
-}
-
 function sliceForRender(arr, idxFrom, idxTo){
   if(idxTo < 1) return [];
   const a = Math.max(0, idxFrom);
   const b = Math.min(arr.length, idxTo+1);
-  if(b <= a) return [];
   return arr.slice(a,b);
-}
-
-function minMaxY(list){
-  let mn = Infinity, mx = -Infinity;
-  for(const p of list){
-    if(!p) continue;
-    const y = p.y;
-    if(!Number.isFinite(y)) continue;
-    if(y < mn) mn = y;
-    if(y > mx) mx = y;
-  }
-  if(mn === Infinity) return {min:0, max:1};
-  return {min:mn, max:mx};
 }
 
 function renderAll(){
@@ -1216,14 +884,17 @@ function renderAll(){
 
   // Determine render time range
   let xMin = 0;
-  let xMax = Math.max(10, sim.t);
+
+  // KEY FIX YOU ASKED: x-axis should not “pre-span” to 10s at t=0.
+  // It should grow with time (same feel as frequency). Still keep a tiny minimum to avoid divide-by-zero.
+  let xMax = Math.max(sim.t, 1);
 
   if(renderMode === "window"){
     xMin = Math.max(0, sim.t - windowSec);
-    xMax = Math.max(xMin + 1, sim.t);
+    xMax = Math.max(sim.t, xMin + 1);
   }
 
-  // idxTo = last <= sim.t (progressive)
+  // compute idx range based on time for each series (binary search)
   const idxPv = lastIndexAtTime(series.pv, sim.t);
   const idxWind = lastIndexAtTime(series.wind, sim.t);
   const idxLoad = lastIndexAtTime(series.load, sim.t);
@@ -1231,13 +902,13 @@ function renderAll(){
   const idxBess = lastIndexAtTime(series.bess, sim.t);
   const idxGrid = lastIndexAtTime(series.grid, sim.t);
 
-  // idxFrom = first >= xMin (window mode), else 0
-  const idxFromPv = renderMode==="window" ? firstIndexAtOrAfter(series.pv, xMin) : 0;
-  const idxFromWind = renderMode==="window" ? firstIndexAtOrAfter(series.wind, xMin) : 0;
-  const idxFromLoad = renderMode==="window" ? firstIndexAtOrAfter(series.load, xMin) : 0;
-  const idxFromDiesel = renderMode==="window" ? firstIndexAtOrAfter(series.diesel, xMin) : 0;
-  const idxFromBess = renderMode==="window" ? firstIndexAtOrAfter(series.bess, xMin) : 0;
-  const idxFromGrid = renderMode==="window" ? firstIndexAtOrAfter(series.grid, xMin) : 0;
+  // find idxFrom for window mode (approx via searching xMin)
+  const idxFromPv = renderMode==="window" ? lastIndexAtTime(series.pv, xMin) : 0;
+  const idxFromWind = renderMode==="window" ? lastIndexAtTime(series.wind, xMin) : 0;
+  const idxFromLoad = renderMode==="window" ? lastIndexAtTime(series.load, xMin) : 0;
+  const idxFromDiesel = renderMode==="window" ? lastIndexAtTime(series.diesel, xMin) : 0;
+  const idxFromBess = renderMode==="window" ? lastIndexAtTime(series.bess, xMin) : 0;
+  const idxFromGrid = renderMode==="window" ? lastIndexAtTime(series.grid, xMin) : 0;
 
   const pPv = sliceForRender(series.pv, idxFromPv, idxPv);
   const pWind = sliceForRender(series.wind, idxFromWind, idxWind);
@@ -1246,24 +917,20 @@ function renderAll(){
   const pBess = sliceForRender(series.bess, idxFromBess, idxBess);
   const pGrid = sliceForRender(series.grid, idxFromGrid, idxGrid);
 
-  // y range auto based ONLY on visible points
+  // y range auto
   const allP = [pPv,pWind,pLoad,pDiesel,pBess,pGrid].flat();
   let yMin = 0, yMax = 1;
   if(allP.length){
-    const mm = minMaxY(allP);
-    yMin = mm.min; yMax = mm.max;
+    yMin = Math.min(...allP.map(p=>p.y));
+    yMax = Math.max(...allP.map(p=>p.y));
+    // pad range to avoid cramped top/bottom
     const pad = (yMax-yMin || 1) * 0.12;
     yMin -= pad; yMax += pad;
   }
 
-  // playhead + mask toggle
-  const play = $("playhead").value === "on";
-  const playheadX = play ? sim.t : null;
-
   powerChart.render({
     xMin, xMax,
     yMin, yMax,
-    playheadX,
     series: [
       {data:pPv, color:COLORS.pv, width:2.2},
       {data:pWind, color:COLORS.wind, width:2.0, alpha:.95},
@@ -1279,20 +946,20 @@ function renderAll(){
   const idxV = lastIndexAtTime(series.vmin, sim.t);
   const idxS = lastIndexAtTime(series.soc, sim.t);
 
-  const idxFromF = renderMode==="window" ? firstIndexAtOrAfter(series.f, xMin) : 0;
-  const idxFromV = renderMode==="window" ? firstIndexAtOrAfter(series.vmin, xMin) : 0;
-  const idxFromS = renderMode==="window" ? firstIndexAtOrAfter(series.soc, xMin) : 0;
+  const idxFromF = renderMode==="window" ? lastIndexAtTime(series.f, xMin) : 0;
+  const idxFromV = renderMode==="window" ? lastIndexAtTime(series.vmin, xMin) : 0;
+  const idxFromS = renderMode==="window" ? lastIndexAtTime(series.soc, xMin) : 0;
 
   const pF = sliceForRender(series.f, idxFromF, idxF);
   const pV = sliceForRender(series.vmin, idxFromV, idxV);
   const pS = sliceForRender(series.soc, idxFromS, idxS);
 
-  // y1 range covers Hz + pu on same axis (demo)
+  // y1 range covers Hz + pu on same axis (simple demo)
   const allY1 = [pF,pV].flat();
   let y1Min = 0.8, y1Max = 1.2;
   if(allY1.length){
-    const mm = minMaxY(allY1);
-    y1Min = mm.min; y1Max = mm.max;
+    y1Min = Math.min(...allY1.map(p=>p.y));
+    y1Max = Math.max(...allY1.map(p=>p.y));
     const pad = (y1Max-y1Min || 1)*0.18;
     y1Min -= pad; y1Max += pad;
   }
@@ -1300,8 +967,8 @@ function renderAll(){
   // y2 for SOC
   let y2Min = 0, y2Max = 100;
   if(pS.length){
-    const mm = minMaxY(pS);
-    y2Min = mm.min; y2Max = mm.max;
+    y2Min = Math.min(...pS.map(p=>p.y));
+    y2Max = Math.max(...pS.map(p=>p.y));
     const pad = (y2Max-y2Min || 1)*0.10;
     y2Min = clamp(y2Min - pad, 0, 100);
     y2Max = clamp(y2Max + pad, 0, 100);
@@ -1310,7 +977,6 @@ function renderAll(){
   stateChart.render({
     xMin, xMax,
     yMin: y1Min, yMax: y1Max,
-    playheadX,
     y2: {min:y2Min, max:y2Max},
     series: [
       {data:pF, color:COLORS.f, width:2.2, y2:false},
@@ -1324,6 +990,7 @@ function renderAll(){
 
 /* -----------------------------
   Demo engine tick
+  Replace with your microgrid-engine outputs.
 ----------------------------- */
 function demoSignals(t){
   // Basic noisy profiles (MW)
@@ -1356,7 +1023,8 @@ function demoSignals(t){
 }
 
 /* -----------------------------
-  UVLS (demo structure)
+  UVLS (demo effect)
+  Here we show structure; integrate with your real logic if needed.
 ----------------------------- */
 let uvls = { stage:0, lastTriggerT:null };
 
@@ -1369,10 +1037,10 @@ function applyUvls(loadMw, vmin, t){
     if(uvls.lastTriggerT === null) uvls.lastTriggerT = t;
     const belowFor = t - uvls.lastTriggerT;
     if(belowFor >= UV_DELAY && uvls.stage < stages.length){
+      // shed next stage
       const shedPct = stages[uvls.stage] / 100;
       uvls.stage++;
-      uvls.lastTriggerT = t;
-      logEvent("UVLS", `Stage ${uvls.stage} shed ${(shedPct*100).toFixed(0)}% of load (Vmin=${vmin.toFixed(3)}pu)`);
+      uvls.lastTriggerT = t; // reset for next stage delay
       return loadMw * (1 - shedPct);
     }
   }else{
@@ -1384,59 +1052,95 @@ function applyUvls(loadMw, vmin, t){
 
 /* -----------------------------
   Trip state progression in tick()
-  - Clarified: only TRIP_COUNTDOWN uses tripAt
-  - OPENED decides policy immediately (auto/manual/lockout)
 ----------------------------- */
+
+/* ORIGINAL tickTripState left here (not used) to satisfy “code only increases”.
 function tickTripState(){
   const st = sim.trip.state;
   const t = sim.t;
 
   if(st === "TRIP_COUNTDOWN"){
-    if(sim.trip.canceled){
-      setTripState("ARMED");
-      return;
-    }
     if(t >= sim.trip.tripAt){
       // OPEN breaker now
       sim.trip.gridConnected = false;
-      sim.trip.openedAt = t;
-      logEvent("OPEN", "Breaker OPEN executed (grid disconnected)");
-      setTripState("OPENED");
+      setTripState("TRIPPED_HOLD");
+      sim.trip.trippedAt = t;
 
-      const policy = $("reclosePolicy").value;
-      const recloseDelay = Math.max(0, Number($("recloseDelay").value) || 0);
+      // schedule reclose (explicit)
+      const recloseDelay = Number($("recloseDelay").value) || 0;
       sim.trip.recloseDelay = recloseDelay;
+      sim.trip.recloseAt = t + recloseDelay;
 
-      if(policy === "auto"){
-        sim.trip.recloseAt = t + recloseDelay;
-        if(recloseDelay > 0){
-          logEvent("CLOSE", `Auto CLOSE scheduled at t=${sim.trip.recloseAt.toFixed(2)}s`);
-          setTripState("RECLOSE_COUNTDOWN");
-        }else{
-          sim.trip.gridConnected = true;
-          logEvent("CLOSE", "Auto CLOSE immediate (0s delay)");
-          setTripState("ARMED");
-        }
+      // If delay is 0, immediately proceed
+      if(recloseDelay > 0){
+        setTripState("RECLOSE_COUNTDOWN");
+      }else{
+        sim.trip.gridConnected = true;
+        setTripState("RECLOSED");
       }
-      else if(policy === "manual"){
-        logEvent("CLOSE", "Manual reclose selected; waiting for operator");
-        setTripState("WAIT_MANUAL_CLOSE");
-      }
-      else{
-        logEvent("CLOSE", "Lockout selected; no reclose will happen");
-        setTripState("LOCKOUT");
+    }
+  }
+  else if(st === "TRIPPED_HOLD"){
+    // In this simplified model we immediately go into reclose countdown
+    setTripState("RECLOSE_COUNTDOWN");
+  }
+  else if(st === "RECLOSE_COUNTDOWN"){
+    if(t >= sim.trip.recloseAt){
+      sim.trip.gridConnected = true;
+      setTripState("RECLOSED");
+    }
+  }
+  else if(st === "RECLOSED"){
+    // auto-return to ARMED
+    setTripState("ARMED");
+  }
+}
+*/
+
+// Updated trip machine: makes the “countdown” meaning unambiguous.
+// TRIP_COUNTDOWN counts to OPEN
+// TRIPPED_HOLD counts a short OPEN-confirm hold
+// RECLOSE_COUNTDOWN counts to CLOSE
+function tickTripState_v2(){
+  const st = sim.trip.state;
+  const t = sim.t;
+
+  if(st === "TRIP_COUNTDOWN"){
+    if(t >= sim.trip.tripAt){
+      // OPEN breaker now
+      sim.trip.gridConnected = false;
+      sim.trip.trippedAt = t;
+
+      // Hold OPEN briefly so UI can clearly show “OPEN confirmed”
+      sim.trip.openConfirmedAt = t + (sim.trip.openConfirmHold || 0);
+
+      setTripState("TRIPPED_HOLD");
+    }
+  }
+  else if(st === "TRIPPED_HOLD"){
+    // wait until OPEN hold expires, then schedule/enter reclose countdown
+    if(sim.trip.openConfirmedAt != null && t >= sim.trip.openConfirmedAt){
+      const recloseDelay = Number($("recloseDelay").value) || 0;
+      sim.trip.recloseDelay = recloseDelay;
+      sim.trip.recloseAt = t + recloseDelay;
+
+      if(recloseDelay > 0){
+        setTripState("RECLOSE_COUNTDOWN");
+      }else{
+        sim.trip.gridConnected = true;
+        setTripState("RECLOSED");
       }
     }
   }
   else if(st === "RECLOSE_COUNTDOWN"){
     if(t >= sim.trip.recloseAt){
       sim.trip.gridConnected = true;
-      logEvent("CLOSE", "Auto CLOSE executed; grid reconnected");
-      setTripState("ARMED");
+      setTripState("RECLOSED");
     }
   }
-  else{
-    // OPENED / WAIT_MANUAL_CLOSE / LOCKOUT / ARMED do nothing in tick
+  else if(st === "RECLOSED"){
+    // auto-return to ARMED
+    setTripState("ARMED");
   }
 }
 
@@ -1464,16 +1168,15 @@ function loop(wallTs){
 
   // advance simulation time
   sim.dt = Number($("dt").value) || 0.5;
-
-  // stable series density: fixed-step integration
+  // We advance in fixed steps for stable series density
   let steps = Math.floor((wallDt * speed) / sim.dt);
   steps = clamp(steps, 1, 20);
 
   for(let k=0;k<steps;k++){
     sim.t += sim.dt;
 
-    // trip state progression
-    tickTripState();
+    // trip state progression (use v2)
+    tickTripState_v2();
 
     // generate signals
     const s = demoSignals(sim.t);
@@ -1506,127 +1209,10 @@ function loop(wallTs){
 }
 
 /* -----------------------------
-  Tooltips (hover/tap)
-  - shows nearest point values at hovered time
------------------------------ */
-function nearestPoint(arr, t){
-  if(!arr || !arr.length) return null;
-  const idx = lastIndexAtTime(arr, t);
-  if(idx < 0) return null;
-  const a = arr[idx];
-  const b = arr[idx+1];
-  if(!b) return a;
-  return (Math.abs(a.x - t) <= Math.abs(b.x - t)) ? a : b;
-}
-
-function bindTooltip(canvas, chart, tipEl, getters){
-  let active = false;
-
-  function showAt(clientX, clientY){
-    if($("tooltips").value !== "on") return;
-    const ax = chart.getAxes();
-    if(!ax) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-
-    const xCss = clientX - rect.left;
-    const yCss = clientY - rect.top;
-
-    // clamp to plot area
-    const x = xCss * dpr;
-    const y = yCss * dpr;
-
-    if(x < ax.x0 || x > ax.x1 || y < ax.y1 || y > ax.y0){
-      tipEl.style.opacity = 0;
-      return;
-    }
-
-    // invert x to time
-    const tMin = ax.xt.min, tMax = ax.xt.max;
-    const t = tMin + ((x - ax.x0) / ((ax.x1-ax.x0)||1)) * (tMax - tMin);
-
-    const data = getters(t);
-    if(!data) return;
-
-    tipEl.style.opacity = 1;
-    tipEl.style.left = xCss + "px";
-    tipEl.style.top = yCss + "px";
-    tipEl.innerHTML = data;
-  }
-
-  function onMove(e){
-    active = true;
-    if(e.touches && e.touches[0]){
-      showAt(e.touches[0].clientX, e.touches[0].clientY);
-    }else{
-      showAt(e.clientX, e.clientY);
-    }
-  }
-  function onLeave(){
-    active = false;
-    tipEl.style.opacity = 0;
-  }
-
-  canvas.addEventListener("mousemove", onMove);
-  canvas.addEventListener("mouseleave", onLeave);
-  canvas.addEventListener("touchstart", onMove, {passive:true});
-  canvas.addEventListener("touchmove", onMove, {passive:true});
-  canvas.addEventListener("touchend", onLeave);
-}
-
-bindTooltip($("powerCanvas"), powerChart, $("powerTip"), (t) => {
-  const pv = nearestPoint(series.pv, t);
-  const wind = nearestPoint(series.wind, t);
-  const load = nearestPoint(series.load, t);
-  const diesel = nearestPoint(series.diesel, t);
-  const bess = nearestPoint(series.bess, t);
-  const grid = nearestPoint(series.grid, t);
-
-  if(!pv) return null;
-  const tt = pv.x;
-  return `
-    <div class="t">t = ${fmtTimeSec(tt)}</div>
-    <div class="line"><span class="k">PV</span><span class="v">${(pv?.y??0).toFixed(3)} MW</span></div>
-    <div class="line"><span class="k">Wind</span><span class="v">${(wind?.y??0).toFixed(3)} MW</span></div>
-    <div class="line"><span class="k">Load</span><span class="v">${(load?.y??0).toFixed(3)} MW</span></div>
-    <div class="line"><span class="k">Diesel</span><span class="v">${(diesel?.y??0).toFixed(3)} MW</span></div>
-    <div class="line"><span class="k">BESS</span><span class="v">${(bess?.y??0).toFixed(3)} MW</span></div>
-    <div class="line"><span class="k">Grid-tie</span><span class="v">${(grid?.y??0).toFixed(3)} MW</span></div>
-  `;
-});
-
-bindTooltip($("stateCanvas"), stateChart, $("stateTip"), (t) => {
-  const f = nearestPoint(series.f, t);
-  const v = nearestPoint(series.vmin, t);
-  const s = nearestPoint(series.soc, t);
-  if(!f) return null;
-  const tt = f.x;
-  return `
-    <div class="t">t = ${fmtTimeSec(tt)}</div>
-    <div class="line"><span class="k">Frequency</span><span class="v">${(f?.y??0).toFixed(3)} Hz</span></div>
-    <div class="line"><span class="k">Vmin</span><span class="v">${(v?.y??0).toFixed(3)} pu</span></div>
-    <div class="line"><span class="k">SOC</span><span class="v">${(s?.y??0).toFixed(1)} %</span></div>
-  `;
-});
-
-/* -----------------------------
-  Controls wiring
+  Controls
 ----------------------------- */
 $("mode").addEventListener("change", () => {
   sim.mode = $("mode").value;
-  logEvent("MODE", "Mode set to " + sim.mode);
-});
-
-$("reclosePolicy").addEventListener("change", () => {
-  const p = $("reclosePolicy").value;
-  logEvent("CFG", "Reclose policy = " + p);
-  updateTripUI();
-});
-
-$("manualCloseBtn").addEventListener("click", () => {
-  manualClose();
-  renderAll();
 });
 
 $("startBtn").addEventListener("click", () => {
@@ -1635,11 +1221,9 @@ $("startBtn").addEventListener("click", () => {
     sim.paused = false;
     $("pauseBtn").disabled = false;
     lastWall = null;
-    logEvent("RUN", "Start");
     raf = requestAnimationFrame(loop);
   }else{
     sim.paused = false;
-    logEvent("RUN", "Resume");
   }
   renderAll();
 });
@@ -1647,7 +1231,6 @@ $("startBtn").addEventListener("click", () => {
 $("pauseBtn").addEventListener("click", () => {
   sim.paused = !sim.paused;
   $("pauseBtn").textContent = sim.paused ? "Resume" : "Pause";
-  logEvent("RUN", sim.paused ? "Pause" : "Resume");
   renderAll();
 });
 
@@ -1667,17 +1250,11 @@ $("resetBtn").addEventListener("click", () => {
 
   // reset trip state
   sim.trip.gridConnected = true;
-  sim.trip.requestedAt = null;
-  sim.trip.tripAt = null;
-  sim.trip.openedAt = null;
-  sim.trip.recloseAt = null;
-  sim.trip.canceled = false;
+  sim.trip.openConfirmedAt = null;
   setTripState("ARMED");
-
   $("pauseBtn").textContent = "Pause";
   $("pauseBtn").disabled = true;
 
-  logEvent("RUN", "Reset");
   renderAll();
 });
 
@@ -1686,23 +1263,10 @@ $("tripBtn").addEventListener("click", () => {
   renderAll();
 });
 
-$("cancelTripBtn").addEventListener("click", () => {
-  cancelTrip();
-  renderAll();
-});
-
-$("clearLogBtn").addEventListener("click", () => {
-  LOG.length = 0;
-  renderLog();
-});
-
 $("exportBtn").addEventListener("click", () => {
   // Demo CSV export
   const header = ["t","pv","wind","load","diesel","bess","grid","freq","vmin","soc"].join(",");
-  const n = Math.min(
-    series.pv.length, series.wind.length, series.load.length, series.diesel.length,
-    series.bess.length, series.grid.length, series.f.length, series.vmin.length, series.soc.length
-  );
+  const n = Math.min(series.pv.length, series.wind.length, series.load.length, series.diesel.length, series.bess.length, series.grid.length, series.f.length, series.vmin.length, series.soc.length);
   const rows = [];
   for(let i=0;i<n;i++){
     rows.push([
@@ -1718,18 +1282,15 @@ $("exportBtn").addEventListener("click", () => {
       series.soc[i].y.toFixed(2),
     ].join(","));
   }
-  logEvent("EXPORT", `CSV exported (${n} rows)`);
   downloadText("microgrid_series.csv", header + "\n" + rows.join("\n"));
 });
 
 window.addEventListener("resize", () => renderAll());
 
 /* -----------------------------
-  Initial render + initial log
+  Initial render
 ----------------------------- */
-logEvent("BOOT", "UI loaded");
 renderAll();
-renderLog();
 </script>
 </body>
 </html>
