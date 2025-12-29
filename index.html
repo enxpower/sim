@@ -1275,6 +1275,8 @@ function updateMotor(dt){
 }
 
 function stepOnce(dt){
+  if(!(dt > 0)) return;
+
   
 
   // Consume events at this time
