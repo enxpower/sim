@@ -1,1296 +1,1676 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Off-Grid Mining Microgrid · Single File · Progressive Charts + Trip State</title>
-<meta name="description" content="Single-file microgrid simulation UI with progressive time-series rendering, mobile-friendly layout, and explicit trip/reclose state machine."/>
+<title>Mining Microgrid Simulator · Single-File · Grid/Island + Multi-Bus + Protection</title>
 <style>
-  :root{
-    --bg:#ffffff;
-    --panel:#ffffff;
-    --muted:#f5f6f8;
-    --border:#d9dde3;
-    --text:#0b1220;
-    --sub:#516075;
-
-    --btn:#111111;
-    --btnText:#ffffff;
-    --danger:#b42318;
-    --ok:#027a48;
-    --warn:#b54708;
-
-    --shadow: 0 8px 24px rgba(16,24,40,.08);
-
-    --radius:14px;
-    --gap:12px;
-
-    --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-  }
-
-  html,body{height:100%}
-  body{
-    margin:0;
-    background:var(--bg);
-    color:var(--text);
-    font-family:var(--font);
-    line-height:1.35;
-  }
-
-  .wrap{
-    max-width:1100px;
-    margin:0 auto;
-    padding:18px 14px 34px;
-  }
-
-  h1{
-    margin:0 0 6px;
-    font-size:18px;
-    letter-spacing:.2px;
-  }
-  .sub{
-    color:var(--sub);
-    font-size:13px;
-    margin:0 0 14px;
-  }
-
-  .grid{
-    display:grid;
-    grid-template-columns: 1fr 1fr;
-    gap:var(--gap);
-    align-items:start;
-  }
-
-  .card{
-    background:var(--panel);
-    border:1px solid var(--border);
-    border-radius:var(--radius);
-    box-shadow:var(--shadow);
-    padding:14px;
-  }
-
-  .card h2{
-    margin:0 0 10px;
-    font-size:16px;
-  }
-
-  .row{
-    display:flex;
-    gap:10px;
-    align-items:center;
-    flex-wrap:wrap;
-  }
-
-  .kvs{
-    display:grid;
-    grid-template-columns: 1fr 1fr;
-    gap:10px;
-  }
-
-  .field{
-    display:flex;
-    flex-direction:column;
-    gap:6px;
-    min-width: 160px;
-    flex: 1;
-  }
-  label{
-    font-size:12px;
-    color:var(--sub);
-  }
-  input, select, textarea{
-    border:1px solid var(--border);
-    border-radius:10px;
-    padding:10px 10px;
-    font-size:14px;
-    outline:none;
-    background:#fff;
-    color:var(--text);
-  }
-  input:focus, select:focus, textarea:focus{
-    box-shadow: 0 0 0 3px rgba(17,17,17,.12);
-    border-color:#b8bdc6;
-  }
-
-  .btn{
-    appearance:none;
-    border:1px solid #0f172a;
-    background:var(--btn);
-    color:var(--btnText);
-    padding:10px 12px;
-    border-radius:12px;
-    cursor:pointer;
-    font-weight:700;
-    font-size:13px;
-    letter-spacing:.2px;
-  }
+  :root{--fg:#111;--muted:#666;--box:#d1d5db;--bg:#fff;--btnbg:#fff;--btnbd:#111;--btnhover:#0a0a0a10}
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,"Noto Sans",sans-serif;color:var(--fg);margin:14px;background:var(--bg)}
+  h1{font-size:18px;margin:0 0 8px}
+  .row{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0}
+  .card{border:1px solid var(--box);border-radius:10px;padding:12px;background:#fff;flex:1 1 320px}
+  label{display:block;font-size:12px;margin:6px 0 3px}
+  input[type=number],input[type=range],select,textarea{width:100%;padding:7px 9px;border:1px solid #cbd5e1;border-radius:8px}
+  input[type=range]{height:32px;padding:0}
+  textarea{min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;white-space:pre}
+  .btn{min-width:108px;height:38px;padding:0 14px;border:1.5px solid var(--btnbd);border-radius:10px;background:var(--btnbg);
+       cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:600;transition:.15s ease;user-select:none}
+  .btn:hover{background:var(--btnhover)}
   .btn:active{transform:translateY(1px)}
-  .btn.secondary{
-    background:#fff;
-    color:#111;
-    border:1px solid var(--border);
-    font-weight:700;
+  .btn.secondary{border-color:#6b7280;color:#333}
+  .btn.danger{border-color:#b91c1c;color:#991b1b}
+  .btn.safe{border-color:#047857;color:#065f46}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .kv{font-family:ui-monospace,Menlo,Consolas,monospace}
+  canvas{width:100%;height:280px;background:#fff;border:1px solid #eee;border-radius:10px;display:block}
+  .stack{position:relative}
+  .overlay{
+    position:absolute;inset:8px;display:flex;align-items:center;justify-content:center;
+    background:repeating-linear-gradient(45deg,#f9fafb,#f9fafb 10px,#f3f4f6 10px,#f3f4f6 20px);
+    border:1px dashed #e5e7eb;border-radius:10px;color:#6b7280;font-size:14px;letter-spacing:.2px
   }
-  .btn.danger{
-    background:var(--danger);
-    border-color:var(--danger);
-  }
-  .btn:disabled{
-    opacity:.55;
-    cursor:not-allowed;
-  }
-
-  .pill{
-    display:inline-flex;
-    align-items:center;
-    gap:8px;
-    padding:8px 10px;
-    border:1px solid var(--border);
-    border-radius:999px;
-    background:var(--muted);
-    font-size:12px;
-    color:var(--sub);
-  }
-  .dot{
-    width:10px;height:10px;border-radius:999px;background:#9aa4b2;
-  }
-  .dot.ok{background:var(--ok)}
-  .dot.warn{background:var(--warn)}
-  .dot.bad{background:var(--danger)}
-
-  .statusbar{
-    display:flex;
-    gap:10px;
-    align-items:center;
-    justify-content:space-between;
-    flex-wrap:wrap;
-    margin-top:8px;
-  }
-  .statusbar .left{
-    display:flex;
-    gap:10px;
-    align-items:center;
-    flex-wrap:wrap;
-  }
-  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
-
-  /* Charts */
-  .chartWrap{
-    display:flex;
-    flex-direction:column;
-    gap:10px;
-  }
-  .chartTitle{
-    font-weight:800;
-    font-size:14px;
-    margin:0;
-  }
-  .legend{
-    display:flex;
-    flex-wrap:wrap;
-    gap:8px 10px;
-    align-items:center;
-  }
-  .lg{
-    display:inline-flex;
-    align-items:center;
-    gap:8px;
-    border:1px solid var(--border);
-    background:#fff;
-    padding:6px 9px;
-    border-radius:999px;
-    font-size:12px;
-    color:var(--sub);
-  }
-  .sw{
-    width:12px;height:12px;border-radius:4px;
-    border:1px solid rgba(0,0,0,.15);
-  }
-
-  canvas{
-    width:100%;
-    height:360px;
-    border:1px solid var(--border);
-    border-radius:14px;
-    background:#fff;
-  }
-
-  .hint{
-    color:var(--sub);
-    font-size:12px;
-    margin:0;
-  }
-
-  /* Mobile */
-  @media (max-width: 900px){
-    .grid{grid-template-columns:1fr}
-    canvas{height:320px}
-    .kvs{grid-template-columns:1fr}
-  }
-  @media (max-width: 520px){
-    /* a tiny bit tighter on phones so legends + charts breathe */
-    .card{padding:12px}
-    .lg{padding:6px 8px}
-    canvas{height:290px}
-  }
-  @media (max-width: 420px){
-    .wrap{padding:14px 10px 26px}
-    .btn{width:100%}
-    .row{gap:8px}
-    canvas{height:270px}
-    input,select{font-size:16px} /* avoid iOS zoom */
-  }
+  .overlay .pill{background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:6px 10px;display:flex;align-items:center;gap:8px}
+  .kpi{display:flex;gap:10px;flex-wrap:wrap}
+  .kpi .box{border:1px solid var(--box);border-radius:10px;padding:8px 10px;min-width:170px;background:#fff}
+  .kpi .box b{display:block;font-size:12px;color:#374151}
+  .kpi .box span{display:block;font-size:18px;margin-top:2px}
+  #log{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;max-height:220px;overflow:auto;border:1px solid #eee;border-radius:8px;padding:8px;background:#fafafa;white-space:pre-wrap;line-height:1.35}
+  footer{margin-top:14px;padding:14px;border-top:1px dashed #e5e7eb;color:#6b7280;font-size:13px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  .muted{opacity:.6}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .pill{display:inline-flex;gap:8px;align-items:center;border:1px solid #e5e7eb;border-radius:999px;padding:6px 10px;background:#fff}
+  .chip{display:inline-flex;gap:6px;align-items:center;border:1px solid #e5e7eb;border-radius:10px;padding:6px 8px;background:#f9fafb;font-size:12px}
+  .legend{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px}
+  .legend .item{display:inline-flex;gap:8px;align-items:center;border:1px solid #e5e7eb;border-radius:999px;padding:6px 10px;background:#fff;font-size:12px}
+  .swatch{width:12px;height:12px;border-radius:3px;border:1px solid #e5e7eb}
+  .dot{width:10px;height:10px;border-radius:999px;border:1px solid #e5e7eb;background:#9ca3af}
+  .dot.ok{background:#10b981;border-color:#059669}
+  .dot.bad{background:#ef4444;border-color:#dc2626}
+  .statusRow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  .statusPill{display:inline-flex;gap:8px;align-items:center;border:1px solid #e5e7eb;border-radius:999px;padding:6px 10px;background:#fff}
 </style>
 </head>
-
 <body>
-<div class="wrap">
-  <h1>Microgrid Simulation · Single File</h1>
-  <p class="sub">Power / Frequency / Vmin / SOC charts render progressively over time. Trip/Reclose is an explicit state machine.</p>
+<div class="topbar">
+  <h1>Mining Microgrid Simulator — Multi-Bus RMS · Grid/Island via PCC Switch · Single File</h1>
+  <div class="pill kv"><span id="modeBadge">MODE: —</span><span class="muted">·</span><span id="tBadge">t=—</span></div>
+</div>
 
-  <div class="grid">
-    <!-- Controls -->
-    <div class="card">
-      <h2>Controls</h2>
+<div class="row">
+  <div class="card">
+    <b>Run</b>
+    <label>Simulation length (hours)</label><input id="simHours" type="number" value="24" step="1" min="1">
+    <label>Base time step dt (s)</label><input id="dtBase" type="number" value="0.5" step="0.1" min="0.05">
+    <label>Event window dt (s) (± window)</label>
+    <div class="grid2">
+      <input id="dtEvent" type="number" value="0.1" step="0.05" min="0.05">
+      <input id="dtWinSec" type="number" value="30" step="5" min="5">
+    </div>
+    <label>Nominal frequency f0 (Hz)</label><input id="f0" type="number" value="60" step="1" min="40" max="65">
+    <label>System damping D (pu)</label><input id="Dsys" type="number" value="2.2" step="0.1">
+    <label>Load freq-sensitivity α (%/Hz)</label><input id="alphaLoad" type="number" value="2.0" step="0.1">
+    <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn" id="startBtn"><span>▶</span><span>Start</span></button>
+      <button class="btn secondary" id="pauseBtn"><span>⏸</span><span>Pause</span></button>
+      <button class="btn secondary" id="resetBtn"><span>↺</span><span>Reset</span></button>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn secondary" id="exportCsvBtn">Export CSV</button>
+      <button class="btn secondary" id="exportManifestBtn">Export Manifest</button>
+    </div>
+  </div>
 
-      <div class="kvs">
-        <div class="field">
-          <label>Mode</label>
-          <select id="mode">
-            <option value="grid">Grid-tied</option>
-            <option value="island">Islanded</option>
-          </select>
-        </div>
+  <div class="card">
+    <b>Grid / PCC (the switch that decides “with grid / without grid”)</b>
 
-        <div class="field">
-          <label>Time step (s)</label>
-          <input id="dt" type="number" value="0.5" min="0.05" step="0.05"/>
-        </div>
-
-        <div class="field">
-          <label>Playback speed</label>
-          <select id="speed">
-            <option value="1">1×</option>
-            <option value="2">2×</option>
-            <option value="5" selected>5×</option>
-            <option value="10">10×</option>
-            <option value="20">20×</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label>Power chart render</label>
-          <select id="powerRenderMode">
-            <option value="progressive" selected>Progressive (from 0 to now)</option>
-            <option value="window">Scroll window (last N minutes)</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label>Window size (min, for scroll window)</label>
-          <input id="windowMin" type="number" value="10" min="1" step="1"/>
-        </div>
-
-        <div class="field">
-          <label>Export CSV (demo)</label>
-          <button class="btn secondary" id="exportBtn">Export current series</button>
-        </div>
+    <div class="statusRow">
+      <div class="statusPill kv">
+        <span class="dot" id="pccDot"></span>
+        <span id="pccStatusText">PCC: —</span>
       </div>
-
-      <hr style="border:none;border-top:1px solid var(--border);margin:14px 0"/>
-
-      <div class="kvs">
-        <div class="field">
-          <label>Trip delay (s)</label>
-          <input id="tripDelay" type="number" value="0.25" min="0" step="0.05"/>
-        </div>
-        <div class="field">
-          <label>Reclose after trip (s)</label>
-          <input id="recloseDelay" type="number" value="30" min="0" step="1"/>
-        </div>
-
-        <div class="field">
-          <label>UVLS stages (comma % of total load)</label>
-          <input id="uvlsStages" type="text" value="10,10,10"/>
-        </div>
-        <div class="field">
-          <label>UVLS note</label>
-          <input type="text" value="Triggers when Vmin stays below UV for delay; each stage sheds that % of total load." disabled/>
-        </div>
-      </div>
-
-      <div class="statusbar">
-        <div class="left">
-          <span class="pill"><span class="dot" id="gridDot"></span> <span id="gridState">Grid: Connected</span></span>
-          <span class="pill mono">t = <span id="tNow">0.0</span>s</span>
-          <span class="pill mono">run = <span id="runState">stopped</span></span>
-        </div>
-        <div class="row">
-          <button class="btn" id="startBtn">Start</button>
-          <button class="btn secondary" id="pauseBtn" disabled>Pause</button>
-          <button class="btn secondary" id="resetBtn">Reset</button>
-          <button class="btn danger" id="tripBtn">Trip</button>
-        </div>
-      </div>
-
-      <div class="card" style="margin-top:12px;border-radius:12px;box-shadow:none;background:var(--muted)">
-        <div class="row" style="justify-content:space-between">
-          <div>
-            <div style="font-weight:800;font-size:13px">Trip/Reclose Status</div>
-            <div class="hint" id="tripHint">Armed. Press Trip to request a trip sequence.</div>
-          </div>
-          <div class="pill mono" id="tripPill">state=ARMED</div>
-        </div>
-        <div style="margin-top:10px" class="hint mono" id="tripTimeline">ARMED → (Trip) → TRIP_COUNTDOWN → TRIPPED_HOLD → RECLOSE_COUNTDOWN → RECLOSED</div>
-        <div style="margin-top:8px" class="hint mono" id="tripExplain">
-          Trip logic: (1) press Trip → wait Trip delay → OPEN; (2) optional OPEN-confirm hold → start reclose countdown; (3) when timer hits 0 → CLOSE.
-        </div>
+      <div class="statusPill kv">
+        <span class="dot" id="protDot"></span>
+        <span id="protStatusText">Protection: —</span>
       </div>
     </div>
 
-    <!-- Charts -->
-    <div class="card">
-      <div class="chartWrap">
-        <div>
-          <p class="chartTitle">Power (MW): PV / Wind / Load / Diesel / BESS / Grid-tie</p>
-          <p class="hint">Fix: x-axis now grows with time (no “future” span at t=0). Curve reveals with time just like the Frequency chart.</p>
-        </div>
+    <label>Grid Connected (PCC Closed)</label>
+    <select id="pccClosed">
+      <option value="true" selected>Yes (Grid-Connected)</option>
+      <option value="false">No (Islanded)</option>
+    </select>
 
-        <div class="legend" id="powerLegend"></div>
-        <canvas id="powerCanvas" width="1200" height="520"></canvas>
+    <label>Grid Strength</label>
+    <select id="gridStrength">
+      <option value="strong" selected>Strong (Infinite Bus)</option>
+      <option value="weak">Weak (Thevenin Equivalent)</option>
+    </select>
 
-        <div style="height:6px"></div>
+    <label>Weak-grid SCR (higher = stronger)</label>
+    <input id="scr" type="range" min="1" max="20" step="1" value="5">
+    <div class="kv muted">SCR=<span id="scrV">5</span> · Tie limit and PCC voltage stiffness scale with SCR</div>
 
-        <div>
-          <p class="chartTitle">Frequency (Hz) + Vmin (pu) + SOC (%)</p>
-          <p class="hint">Same progressive rendering style; tick labels avoid overlap on mobile.</p>
-        </div>
+    <label>Grid trip / reconnect buttons (events)</label>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+      <!-- Swapped order: Attempt Reclose first, Trip Grid second -->
+      <button class="btn safe" id="attemptRecloseBtn"><span>⟲</span><span>Attempt Reclose</span></button>
+      <button class="btn danger" id="tripGridBtn"><span>⏚</span><span>Trip Grid (Open PCC)</span></button>
+    </div>
 
-        <div class="legend" id="stateLegend"></div>
-        <canvas id="stateCanvas" width="1200" height="520"></canvas>
+    <label>Sync-check (reclose window)</label>
+    <div class="grid2">
+      <div>
+        <label class="muted">|Δf| max (Hz)</label><input id="syncDf" type="number" value="0.10" step="0.01" min="0.01">
       </div>
+      <div>
+        <label class="muted">|ΔV| max (pu)</label><input id="syncDv" type="number" value="0.05" step="0.01" min="0.01">
+      </div>
+    </div>
+    <label class="muted">Hold time (s)</label><input id="syncHold" type="number" value="5" step="1" min="1">
+  </div>
+
+  <div class="card">
+    <b>Topology preset (still single-file, just swaps CONFIG)</b>
+    <label>Network preset</label>
+    <select id="topoPreset">
+      <option value="mine_radial" selected>Mining Radial (11 buses)</option>
+      <option value="mine_ring">Mining Ring (11 buses, looped)</option>
+      <option value="tiny">Tiny Demo (4 buses)</option>
+    </select>
+
+    <label>Event script (JSON array). Each event: {t_s, type, ...}</label>
+    <textarea id="eventScript"></textarea>
+    <div class="muted" style="margin-top:6px">
+      Supported types: "pcc_open", "pcc_close", "motor_start", "load_step", "pv_cloud", "wind_gust"
     </div>
   </div>
 </div>
 
+<div class="row">
+  <div class="card">
+    <b>Fleet (VF diesel + VSG BESS + PV/Wind)</b>
+
+    <div class="grid2">
+      <div>
+        <label>Diesel 3.3MW online (0–6)</label><input id="dg33n" type="number" value="3" step="1" min="0" max="6">
+      </div>
+      <div>
+        <label>Diesel 1.25MW online (0–2)</label><input id="dg12n" type="number" value="0" step="1" min="0" max="2">
+      </div>
+    </div>
+
+    <label>Diesel droop R<sub>P</sub> (%)</label><input id="Rdg" type="number" value="4" step="0.5">
+    <label>Diesel min load (pu)</label><input id="dgMinPu" type="number" value="0.35" step="0.05">
+    <div class="grid2">
+      <div><label>Ramp up (MW/s)</label><input id="rampUp" type="number" value="0.2" step="0.05"></div>
+      <div><label>Ramp down (MW/s)</label><input id="rampDn" type="number" value="1.0" step="0.1"></div>
+    </div>
+    <label>Start/stop delay (s)</label><input id="dgDelay" type="number" value="600" step="30">
+    <label>Start/stop hysteresis (MW)</label><input id="dgHyst" type="number" value="1.5" step="0.1">
+    <label>Allow all-off</label>
+    <select id="allowDieselOff">
+      <option value="false" selected>No (keep ≥1 online)</option>
+      <option value="true">Yes</option>
+    </select>
+
+    <hr>
+
+    <div class="grid2">
+      <div><label>BESS Pmax (MW)</label><input id="PbMax" type="number" value="8" step="0.5" min="0"></div>
+      <div><label>BESS Emax (MWh)</label><input id="EbMax" type="number" value="20" step="1" min="0"></div>
+    </div>
+    <div class="grid2">
+      <div><label>Initial SOC (%)</label><input id="soc0" type="number" value="60" step="1" min="0" max="100"></div>
+      <div><label>VSG droop R<sub>P</sub> (%)</label><input id="Rvsg" type="number" value="3" step="0.5"></div>
+    </div>
+    <label>Virtual inertia H (s)</label><input id="Hvsg" type="number" value="6.0" step="0.1">
+
+    <hr>
+
+    <div class="grid2">
+      <div><label>PV max (MW)</label><input id="PpvMax" type="number" value="30" step="1" min="0"></div>
+      <div><label>Wind max (MW)</label><input id="PwindMax" type="number" value="6" step="1" min="0"></div>
+    </div>
+    <div class="grid2">
+      <div><label>Cloudiness (0–1)</label><input id="pvCloud" type="number" value="0.35" step="0.05" min="0" max="1"></div>
+      <div><label>Wind variability (0–1)</label><input id="windVar" type="number" value="0.4" step="0.05" min="0" max="1"></div>
+    </div>
+    <label>Mean wind speed (m/s)</label><input id="windMean" type="number" value="8" step="0.5" min="0">
+  </div>
+
+  <div class="card">
+    <b>Protection (system + feeder)</b>
+    <label>RoCoF max clamp (Hz/s)</label><input id="rocMax" type="number" value="0.9" step="0.1">
+    <div class="grid2">
+      <div><label>UF trip (Hz)</label><input id="uf" type="number" value="59.2" step="0.1"></div>
+      <div><label>OF trip (Hz)</label><input id="of" type="number" value="60.8" step="0.1"></div>
+    </div>
+    <div class="grid2">
+      <div><label>UV trip (pu)</label><input id="uv" type="number" value="0.85" step="0.01"></div>
+      <div><label>OV trip (pu)</label><input id="ov" type="number" value="1.10" step="0.01"></div>
+    </div>
+    <label>Trip delay (s)</label><input id="protDelay" type="number" value="0.25" step="0.05" min="0">
+    <label>Reclose after trip (s)</label><input id="reclose" type="number" value="30" step="1" min="1">
+    <label>UVLS (under-voltage load shedding) stages (comma % of total load)</label>
+    <input id="uvls" type="text" value="10,10,10">
+    <div class="muted" style="margin-top:6px">Stage triggers when Vmin stays below UV for delay; each stage sheds that % of total load.</div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="card stack" style="flex:2 1 560px">
+    <b>Power (MW): PV / Wind / Load / Diesel / BESS / Grid-tie</b>
+    <canvas id="pPlot"></canvas>
+    <div class="legend" id="pLegend"></div>
+    <div id="pOverlay" class="overlay"><div class="pill"><span>▶</span><span>Press Start</span></div></div>
+  </div>
+  <div class="card stack" style="flex:1 1 340px">
+    <b>Frequency (Hz) + Vmin (pu) + SOC (%)</b>
+    <canvas id="fPlot"></canvas>
+    <div class="legend" id="fLegend"></div>
+    <div id="fOverlay" class="overlay"><div class="pill"><span>▶</span><span>Press Start</span></div></div>
+    <div id="live" class="kv muted" style="margin-top:6px">—</div>
+  </div>
+</div>
+
+<div class="card">
+  <b>Metrics & Log</b>
+  <div class="kpi" id="kpiRow">
+    <div class="box"><b>Fuel use</b><span id="kpiFuel">—</span></div>
+    <div class="box"><b>Fuel baseline (all diesel)</b><span id="kpiFuelBase">—</span></div>
+    <div class="box"><b>Fuel saved</b><span id="kpiFuelSave">—</span></div>
+    <div class="box"><b>Renewables share</b><span id="kpiRE">—</span></div>
+    <div class="box"><b>Curtailment</b><span id="kpiCurt">—</span></div>
+    <div class="box"><b>N−1 (diesel)</b><span id="kpiN1">—</span></div>
+    <div class="box"><b>Trips</b><span id="kpiTrips">—</span></div>
+    <div class="box"><b>UVLS stages</b><span id="kpiUvls">—</span></div>
+    <div class="box"><b>Min voltage</b><span id="kpiVmin">—</span></div>
+  </div>
+  <div id="log" class="muted">[Idle] Press Start…</div>
+</div>
+
+<footer>
+  <div>© <span id="yy"></span> Energize-style Single-File Engineering Simulator · All rights reserved.</div>
+  <div class="kv">No external libs · Copy-paste to GitHub Pages</div>
+</footer>
+
 <script>
-/* ============================================================================
-  Single-file microgrid UI
-  - No external libs
-  - Progressive chart rendering (fixes "curve fills axis at start")
-  - Explicit Trip/Reclose state machine (fixes confusing countdown)
-  - Mobile-safe layout + tick label overlap avoidance
-============================================================================ */
+(() => {
+"use strict";
 
-/* -----------------------------
-  Utilities
------------------------------ */
-const $ = (id) => document.getElementById(id);
-
-function clamp(x, a, b){ return Math.max(a, Math.min(b, x)); }
-function lerp(a,b,t){ return a + (b-a)*t; }
-
-function parseCommaPercents(str){
-  const arr = (str || "").split(",").map(s => Number(String(s).trim())).filter(n => Number.isFinite(n) && n>0);
-  return arr.length ? arr : [10,10,10];
+/* ==============================
+   0) Utilities
+============================== */
+const el = id => document.getElementById(id);
+const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
+const nowISO = ()=> new Date().toISOString();
+function ts(t){const h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=Math.floor(t%60);
+  const pad=n=>String(n).padStart(2,'0'); return `[${pad(h)}:${pad(m)}:${pad(s)}]`;}
+function fmt(v,u){
+  if(!isFinite(v)) return "—";
+  const d = (Math.abs(v)<10)?2:1;
+  return v.toLocaleString(undefined,{maximumFractionDigits:d})+(u?(" "+u):"");
 }
+function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return ((t^(t>>>14))>>>0)/4294967296;};}
+let rng = mulberry32(123456);
 
-function downloadText(filename, text){
-  const blob = new Blob([text], {type:"text/plain;charset=utf-8"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
+el("yy").textContent = String(new Date().getFullYear());
 
-/* -----------------------------
-  Chart Renderer (Canvas)
-  - Progressive reveal
-  - Window mode (scroll)
-  - Tick label overlap mitigation
------------------------------ */
-function makeChart(canvas, opts){
-  const ctx = canvas.getContext("2d");
-  const cfg = Object.assign({
-    paddingL: 64,
-    paddingR: 18,
-    paddingT: 18,
-    paddingB: 54,
-    gridX: 6,
-    gridY: 5,
-    font: "12px ui-sans-serif, system-ui",
-    axisColor: "#111",
-    gridColor: "#e6e8ec",
-    textColor: "#516075",
-    bg: "#fff",
-    title: "",
-    xLabel: "time",
-    yLabel: "",
-    y2Label: "",
-    showZeroLine: true,
-    zeroColor: "#c7cdd6",
-    tickRotateDeg: 0, // set by auto for mobile
-  }, opts || {});
+/* ==============================
+   1) UI refs
+============================== */
+const UI = {
+  simHours: el("simHours"),
+  dtBase: el("dtBase"),
+  dtEvent: el("dtEvent"),
+  dtWinSec: el("dtWinSec"),
+  f0: el("f0"),
+  Dsys: el("Dsys"),
+  alphaLoad: el("alphaLoad"),
 
-  function resizeToCss(){
-    // Keep canvas internal resolution matched to CSS size for crisp text.
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    const w = Math.max(320, Math.floor(rect.width * dpr));
-    const h = Math.max(240, Math.floor(rect.height * dpr));
-    if(canvas.width !== w || canvas.height !== h){
-      canvas.width = w;
-      canvas.height = h;
-    }
-    return {w, h, dpr};
-  }
+  pccClosed: el("pccClosed"),
+  gridStrength: el("gridStrength"),
+  scr: el("scr"), scrV: el("scrV"),
+  tripGridBtn: el("tripGridBtn"),
+  attemptRecloseBtn: el("attemptRecloseBtn"),
+  syncDf: el("syncDf"),
+  syncDv: el("syncDv"),
+  syncHold: el("syncHold"),
 
-  function niceTicks(min, max, count){
-    if(!Number.isFinite(min) || !Number.isFinite(max) || min===max){
-      return {min: min-1, max:max+1, step:1};
-    }
-    const span = Math.abs(max - min);
-    const raw = span / Math.max(1, count);
-    const pow = Math.pow(10, Math.floor(Math.log10(raw)));
-    const steps = [1,2,5,10].map(k => k*pow);
-    let step = steps[0];
-    for(const s of steps){ if(raw <= s){ step = s; break; } }
-    const niceMin = Math.floor(min/step)*step;
-    const niceMax = Math.ceil(max/step)*step;
-    return {min:niceMin, max:niceMax, step};
-  }
+  topoPreset: el("topoPreset"),
+  eventScript: el("eventScript"),
 
-  // Extra: format ticks to reduce clutter on narrow screens (fix overlap)
-  function fmtTick(v, decimals){
-    if(!Number.isFinite(v)) return "";
-    const abs = Math.abs(v);
-    if(abs >= 1000) return v.toFixed(0);
-    return v.toFixed(decimals);
-  }
+  dg33n: el("dg33n"), dg12n: el("dg12n"),
+  Rdg: el("Rdg"), dgMinPu: el("dgMinPu"),
+  rampUp: el("rampUp"), rampDn: el("rampDn"),
+  dgDelay: el("dgDelay"), dgHyst: el("dgHyst"), allowDieselOff: el("allowDieselOff"),
 
-  function drawAxes(xMin, xMax, yMin, yMax, y2Min, y2Max){
-    const {w,h} = resizeToCss();
+  PbMax: el("PbMax"), EbMax: el("EbMax"), soc0: el("soc0"),
+  Rvsg: el("Rvsg"), Hvsg: el("Hvsg"),
 
-    // Auto rotate bottom ticks on small screens (fix overlap)
-    const isNarrow = w < 900;
-    const isPhone = w < 520;
-    const rotate = isNarrow ? -28 : 0;
+  PpvMax: el("PpvMax"), pvCloud: el("pvCloud"),
+  PwindMax: el("PwindMax"), windMean: el("windMean"), windVar: el("windVar"),
 
-    // Mobile padding tweaks (fix y tick + label collision)
-    const PL = isPhone ? 54 : cfg.paddingL;
-    const PR = cfg.paddingR;
-    const PT = cfg.paddingT;
-    const PB = isPhone ? 62 : cfg.paddingB;
+  rocMax: el("rocMax"), uf: el("uf"), of: el("of"), uv: el("uv"), ov: el("ov"),
+  protDelay: el("protDelay"), reclose: el("reclose"), uvls: el("uvls"),
 
-    // Dynamic grid density to avoid label stacking on very small widths
-    const gridX = isPhone ? 4 : cfg.gridX;
-    const gridY = cfg.gridY;
+  startBtn: el("startBtn"), pauseBtn: el("pauseBtn"), resetBtn: el("resetBtn"),
+  exportCsvBtn: el("exportCsvBtn"), exportManifestBtn: el("exportManifestBtn"),
 
-    ctx.fillStyle = cfg.bg;
-    ctx.fillRect(0,0,w,h);
+  pPlot: el("pPlot"), fPlot: el("fPlot"),
+  pOverlay: el("pOverlay"), fOverlay: el("fOverlay"),
+  live: el("live"), log: el("log"),
 
-    ctx.font = cfg.font;
-    ctx.textBaseline = "middle";
-    ctx.textAlign = "left";
+  modeBadge: el("modeBadge"), tBadge: el("tBadge"),
 
-    const x0 = PL, x1 = w-PR;
-    const y0 = h-PB, y1 = PT;
+  pLegend: el("pLegend"),
+  fLegend: el("fLegend"),
 
-    // Grid
-    ctx.strokeStyle = cfg.gridColor;
-    ctx.lineWidth = 1;
-
-    for(let i=0;i<=gridX;i++){
-      const t = i/gridX;
-      const x = lerp(x0, x1, t);
-      ctx.beginPath();
-      ctx.moveTo(x, y0);
-      ctx.lineTo(x, y1);
-      ctx.stroke();
-    }
-    for(let j=0;j<=gridY;j++){
-      const t = j/gridY;
-      const y = lerp(y0, y1, t);
-      ctx.beginPath();
-      ctx.moveTo(x0, y);
-      ctx.lineTo(x1, y);
-      ctx.stroke();
-    }
-
-    // Axes
-    ctx.strokeStyle = cfg.axisColor;
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(x0, y0); ctx.lineTo(x1, y0); // x
-    ctx.moveTo(x0, y0); ctx.lineTo(x0, y1); // y
-    ctx.stroke();
-
-    // return mapping funcs for drawing data
-    function mapX(v, a, b){
-      const t = (v-a) / (b-a || 1);
-      return lerp(x0, x1, t);
-    }
-    function mapY(v, a, b){
-      const t = (v-a) / (b-a || 1);
-      return lerp(y0, y1, 1-t);
-    }
-
-    // y ticks
-    const yt = niceTicks(yMin, yMax, gridY);
-    ctx.fillStyle = cfg.textColor;
-    ctx.textAlign = "right";
-    const yDecimals = isPhone ? 1 : 2;
-    for(let j=0;j<=gridY;j++){
-      const v = yt.min + (yt.max-yt.min)*(j/gridY);
-      const y = mapY(v, yt.min, yt.max);
-      ctx.fillText(fmtTick(v, yDecimals), x0-8, y);
-    }
-
-    // y2 ticks (optional)
-    if(Number.isFinite(y2Min) && Number.isFinite(y2Max)){
-      ctx.textAlign = "left";
-      const y2t = niceTicks(y2Min, y2Max, gridY);
-      const y2Decimals = isPhone ? 0 : 2;
-      for(let j=0;j<=gridY;j++){
-        const v = y2t.min + (y2t.max-y2t.min)*(j/gridY);
-        const y = mapY(v, y2t.min, y2t.max);
-        ctx.fillText(fmtTick(v, y2Decimals), x1+8, y);
-      }
-    }
-
-    // x ticks (avoid overlap)
-    const xt = niceTicks(xMin, xMax, gridX);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "alphabetic";
-    ctx.fillStyle = cfg.textColor;
-
-    for(let i=0;i<=gridX;i++){
-      const v = xt.min + (xt.max-xt.min)*(i/gridX);
-      const x = mapX(v, xt.min, xt.max);
-      const label = (v>=3600 ? (v/3600).toFixed(isPhone ? 1 : 2)+"h" : v.toFixed(0)+"s");
-
-      ctx.save();
-      ctx.translate(x, y0+18);
-      ctx.rotate(rotate*Math.PI/180);
-      ctx.fillText(label, 0, 0);
-      ctx.restore();
-    }
-
-    // Zero line
-    if(cfg.showZeroLine && yMin < 0 && yMax > 0){
-      const yZ = mapY(0, yt.min, yt.max);
-      ctx.strokeStyle = cfg.zeroColor;
-      ctx.setLineDash([4,4]);
-      ctx.beginPath();
-      ctx.moveTo(x0, yZ); ctx.lineTo(x1, yZ);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-
-    // Labels
-    ctx.fillStyle = cfg.axisColor;
-    ctx.font = "700 12px ui-sans-serif, system-ui";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    if(cfg.yLabel){
-      ctx.save();
-      ctx.translate(14, (y0+y1)/2);
-      ctx.rotate(-Math.PI/2);
-      ctx.fillText(cfg.yLabel, 0, 0);
-      ctx.restore();
-    }
-
-    if(cfg.y2Label){
-      ctx.save();
-      ctx.translate(w-10, (y0+y1)/2);
-      ctx.rotate(-Math.PI/2);
-      ctx.fillText(cfg.y2Label, 0, 0);
-      ctx.restore();
-    }
-
-    return {w,h,x0,x1,y0,y1,mapX,mapY, xt, yt, gridX, gridY, isPhone, isNarrow};
-  }
-
-  function drawLines(frame, xMin, xMax, yMin, yMax, seriesList, y2){
-    const ax = drawAxes(xMin, xMax, yMin, yMax, y2?.min, y2?.max);
-
-    const clipPad = 2;
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(ax.x0-clipPad, ax.y1-clipPad, (ax.x1-ax.x0)+2*clipPad, (ax.y0-ax.y1)+2*clipPad);
-    ctx.clip();
-
-    // draw each series
-    for(const s of seriesList){
-      const data = s.data;
-      if(!data || data.length<2) continue;
-
-      const useY2 = !!s.y2;
-      const yA = useY2 ? y2.min : ax.yt.min;
-      const yB = useY2 ? y2.max : ax.yt.max;
-
-      ctx.strokeStyle = s.color;
-      ctx.lineWidth = s.width || 2.0;
-      ctx.globalAlpha = s.alpha ?? 1;
-
-      ctx.beginPath();
-      let started = false;
-      for(let i=0;i<data.length;i++){
-        const p = data[i];
-        const x = ax.mapX(p.x, ax.xt.min, ax.xt.max);
-        const y = ax.mapY(p.y, yA, yB);
-
-        if(!started){
-          ctx.moveTo(x,y);
-          started = true;
-        }else{
-          ctx.lineTo(x,y);
-        }
-      }
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    }
-
-    ctx.restore();
-  }
-
-  return {
-    render(params){
-      const {
-        xMin, xMax,
-        yMin, yMax,
-        series,
-        y2
-      } = params;
-      drawLines(null, xMin, xMax, yMin, yMax, series, y2);
-    }
-  };
-}
-
-/* -----------------------------
-  Series Model
------------------------------ */
-function makeSeries(){
-  return {
-    t: [],
-
-    pv: [],
-    wind: [],
-    load: [],
-    diesel: [],
-    bess: [],
-    grid: [],
-
-    f: [],
-    vmin: [],
-    soc: [],
-  };
-}
-
-function pushPoint(arr, x, y){ arr.push({x, y}); }
-
-/* -----------------------------
-  Demo simulation data
-  - Replace this with your engine output
-  - The important fix is: charts now render ONLY up to "current index"
------------------------------ */
-const series = makeSeries();
-
-let sim = {
-  running: false,
-  paused: false,
-  t: 0,
-  dt: 0.5,
-  speed: 5,
-  mode: "grid",
-
-  // Trip state machine
-  trip: {
-    state: "ARMED",
-    requestedAt: null,
-    tripAt: null,
-    trippedAt: null,
-    recloseAt: null,
-
-    tripDelay: 0.25,
-    recloseDelay: 30,
-    gridConnected: true,
-
-    // Added: hold time after OPEN to make “countdown” logic explicit and readable
-    openConfirmHold: 0.60,     // seconds to stay in TRIPPED_HOLD to show OPEN confirmed
-    openConfirmedAt: null
-  }
+  pccDot: el("pccDot"),
+  pccStatusText: el("pccStatusText"),
+  protDot: el("protDot"),
+  protStatusText: el("protStatusText")
 };
 
-/* -----------------------------
-  Trip/Reclose State Machine
-  States:
-    ARMED
-    TRIP_COUNTDOWN
-    TRIPPED_HOLD
-    RECLOSE_COUNTDOWN
-    RECLOSED
------------------------------ */
-function setTripState(st){
-  sim.trip.state = st;
-  $("tripPill").textContent = "state=" + st;
+UI.scr.addEventListener("input", ()=> UI.scrV.textContent = UI.scr.value);
+
+/* ==============================
+   2) Topology presets (multi-bus)
+   - Radial is easiest for stable RMS in browser
+============================== */
+function presetTopology(name){
+  // Units: pu system base uses 1.0 pu voltage; line r/x in pu-ish scale.
+  // This is a pragmatic RMS distribution-like model (forward/back sweep).
+  if(name==="tiny"){
+    return {
+      baseKV: 11,
+      buses: [
+        {id:"PCC", type:"slack"},
+        {id:"B1"}, {id:"B2"}, {id:"B3"}
+      ],
+      lines: [
+        {id:"L1", from:"PCC", to:"B1", r:0.010, x:0.030, rateMVA:25, closed:true},
+        {id:"L2", from:"B1",  to:"B2", r:0.012, x:0.035, rateMVA:15, closed:true},
+        {id:"L3", from:"B1",  to:"B3", r:0.015, x:0.040, rateMVA:10, closed:true}
+      ],
+      // Device placements per bus
+      loads: [
+        {id:"Camp", bus:"B2", Pmw:3.2, Qmvar:1.0, zip:[0.2,0.6,0.2]}, // Z,I,P
+        {id:"Mill", bus:"B3", Pmw:5.5, Qmvar:2.2, zip:[0.1,0.4,0.5]}
+      ],
+      pv:   [{id:"PV1", bus:"B2", Pmax:10}],
+      wind: [{id:"W1",  bus:"B3", Pmax:3}],
+      bess: [{id:"BESS1", bus:"B1"}],
+      diesel:[{id:"DG", bus:"B1"}]
+    };
+  }
+
+  // Mining radial (11 buses): PCC -> Switchyard -> feeders -> loads
+  if(name==="mine_radial"){
+    return {
+      baseKV: 35,
+      buses: [
+        {id:"PCC", type:"slack"},
+        {id:"SWY"}, {id:"F1"}, {id:"F2"}, {id:"F3"},
+        {id:"MILL"}, {id:"CRUSH"}, {id:"PUMP"}, {id:"CAMP"}, {id:"SHOP"}, {id:"AUX"}
+      ],
+      lines: [
+        {id:"L_PCC_SWY", from:"PCC", to:"SWY", r:0.006, x:0.020, rateMVA:60, closed:true},
+        {id:"L_SWY_F1",  from:"SWY", to:"F1",  r:0.008, x:0.025, rateMVA:40, closed:true},
+        {id:"L_SWY_F2",  from:"SWY", to:"F2",  r:0.010, x:0.030, rateMVA:30, closed:true},
+        {id:"L_SWY_F3",  from:"SWY", to:"F3",  r:0.012, x:0.035, rateMVA:25, closed:true},
+
+        {id:"L_F1_MILL",  from:"F1", to:"MILL",  r:0.010, x:0.030, rateMVA:25, closed:true},
+        {id:"L_F1_CRUSH", from:"F1", to:"CRUSH", r:0.012, x:0.032, rateMVA:20, closed:true},
+
+        {id:"L_F2_PUMP", from:"F2", to:"PUMP", r:0.014, x:0.040, rateMVA:12, closed:true},
+        {id:"L_F2_CAMP", from:"F2", to:"CAMP", r:0.016, x:0.045, rateMVA:10, closed:true},
+
+        {id:"L_F3_SHOP", from:"F3", to:"SHOP", r:0.015, x:0.040, rateMVA:12, closed:true},
+        {id:"L_F3_AUX",  from:"F3", to:"AUX",  r:0.018, x:0.050, rateMVA:8,  closed:true}
+      ],
+      loads: [
+        {id:"Load_Mill",  bus:"MILL",  Pmw:5.8, Qmvar:2.4, zip:[0.05,0.35,0.60]},
+        {id:"Load_Crush", bus:"CRUSH", Pmw:3.2, Qmvar:1.2, zip:[0.10,0.40,0.50]},
+        {id:"Load_Pump",  bus:"PUMP",  Pmw:1.6, Qmvar:0.7, zip:[0.15,0.45,0.40]},
+        {id:"Load_Camp",  bus:"CAMP",  Pmw:0.9, Qmvar:0.3, zip:[0.25,0.50,0.25]},
+        {id:"Load_Shop",  bus:"SHOP",  Pmw:0.7, Qmvar:0.25,zip:[0.20,0.50,0.30]},
+        {id:"Load_Aux",   bus:"AUX",   Pmw:0.6, Qmvar:0.2, zip:[0.25,0.50,0.25]}
+      ],
+      pv:   [{id:"PV_Field", bus:"F2", Pmax:30}],
+      wind: [{id:"Wind1", bus:"F3", Pmax:6}],
+      bess: [{id:"BESS", bus:"SWY"}],
+      diesel:[{id:"DG_Fleet", bus:"SWY"}]
+    };
+  }
+
+  // Ring: add tie line between F2 and F3, plus between F1 and F2 for loop
+  if(name==="mine_ring"){
+    const t = presetTopology("mine_radial");
+    t.lines = t.lines.concat([
+      {id:"L_TIE_F2_F3", from:"F2", to:"F3", r:0.020, x:0.060, rateMVA:15, closed:true},
+      {id:"L_TIE_F1_F2", from:"F1", to:"F2", r:0.018, x:0.055, rateMVA:20, closed:true}
+    ]);
+    return t;
+  }
+
+  return presetTopology("mine_radial");
 }
 
-function updateTripUI(){
-  const st = sim.trip.state;
+/* ==============================
+   3) Models: Load, PV, Wind, Diesel, BESS
+============================== */
+function sfc_g_per_kWh(pu){
+  if(pu<=0) return 0;
+  if(pu<=0.25) return 350*pu/0.25;
+  if(pu<=0.5)  return 300-(300-230)*((pu-0.25)/0.25);
+  if(pu<=0.75) return 230-(230-205)*((pu-0.5)/0.25);
+  return 205-(205-200)*((pu-0.75)/0.25);
+}
+function fuelLH(fleet){
+  const rho=0.84; let Lh=0;
+  for(const x of fleet){
+    if(!x.online || x.P<=0) continue;
+    const pu = clamp(x.P/x.cap,0,1);
+    const kW = x.P*1000;
+    const kgph = (sfc_g_per_kWh(pu)/1000)*kW;
+    Lh += kgph/rho;
+  }
+  return Lh;
+}
+function baselineFuelLitersPerHour(Pload, minPu){
+  const units=[]; for(let i=0;i<6;i++) units.push({cap:3.3}); for(let i=0;i<2;i++) units.push({cap:1.25});
+  if(Pload<=0) return 0;
+  units.sort((a,b)=>b.cap-a.cap);
+  let chosen=[], sumCap=0;
+  for(const u of units){
+    chosen.push({cap:u.cap});
+    sumCap+=u.cap;
+    let per=Pload/Math.max(sumCap,1e-6);
+    if(sumCap>=Pload && per<=0.9) break;
+  }
+  let per=Math.max(Pload/sumCap, minPu);
+  per=Math.min(per, 0.95);
+  per = clamp(Math.max(per, 0.6), minPu, 0.95);
 
-  const dot = $("gridDot");
-  const gridTxt = $("gridState");
-
-  if(sim.trip.gridConnected){
-    dot.className = "dot ok";
-    gridTxt.textContent = "Grid: Connected";
-  }else{
-    dot.className = "dot bad";
-    gridTxt.textContent = "Grid: Disconnected";
+  let Lh=0, rho=0.84;
+  for(const x of chosen){
+    const kW = (per*x.cap)*1000;
+    const kgph=(sfc_g_per_kWh(per)/1000)*kW;
+    Lh += kgph/rho;
   }
-
-  const t = sim.t;
-
-  // Clear + explicit messages (your feedback: countdown felt unclear)
-  if(st === "ARMED"){
-    $("tripHint").textContent = "Armed. Press Trip to request OPEN (Trip delay applies).";
-    $("tripBtn").disabled = false;
+  const supplied = chosen.reduce((a,x)=>a+per*x.cap,0);
+  if(Pload>supplied){
+    const extraKW=(Pload-supplied)*1000;
+    const kgph=(200/1000)*extraKW;
+    Lh += kgph/rho;
   }
-  else if(st === "TRIP_COUNTDOWN"){
-    const left = Math.max(0, sim.trip.tripAt - t);
-    $("tripHint").textContent = "Trip requested. Countdown to OPEN: " + left.toFixed(2) + "s (Trip delay).";
-    $("tripBtn").disabled = true;
-  }
-  else if(st === "TRIPPED_HOLD"){
-    const left = sim.trip.openConfirmedAt != null ? Math.max(0, sim.trip.openConfirmedAt - t) : 0;
-    $("tripHint").textContent = "Breaker OPEN confirmed. Holding OPEN: " + left.toFixed(2) + "s before starting reclose countdown.";
-    $("tripBtn").disabled = true;
-  }
-  else if(st === "RECLOSE_COUNTDOWN"){
-    const left = Math.max(0, sim.trip.recloseAt - t);
-    $("tripHint").textContent = "Reclose scheduled. Countdown to CLOSE: " + left.toFixed(1) + "s.";
-    $("tripBtn").disabled = true;
-  }
-  else if(st === "RECLOSED"){
-    $("tripHint").textContent = "Breaker CLOSED. Returning to ARMED.";
-    $("tripBtn").disabled = false;
-  }
+  return Lh;
 }
 
-/* Called when user presses Trip */
-function requestTrip(){
-  if(sim.trip.state !== "ARMED") return;
-  const delay = Number($("tripDelay").value) || 0;
-  sim.trip.tripDelay = delay;
-
-  sim.trip.requestedAt = sim.t;
-  sim.trip.tripAt = sim.t + delay;
-  setTripState("TRIP_COUNTDOWN");
-  // Note: actual opening happens in tick() when t >= tripAt
+/* PV/Wind availability (simple but “mine-realistic enough”) */
+function pvAvail(t, Pmax, cloud){
+  if(Pmax<=0) return 0;
+  const day = 24*3600;
+  const local = (t % day);
+  // Simple bell curve from 6:00 to 18:00
+  const sr = 6*3600, ss = 18*3600;
+  if(local<sr || local>ss) return 0;
+  const u = (local - sr) / (ss - sr);
+  const shape = 1.6;
+  const bell = Math.pow(Math.sin(Math.PI*u), shape);
+  const cloudMod = 1-cloud + cloud*(0.55 + 0.45*Math.sin(0.03*t)*0.6 + 0.4*Math.sin(0.011*t+1.7));
+  const temp = 1-0.06*Math.exp(-Math.pow((u-0.5)/0.20,2));
+  return Math.max(0, Pmax*bell*cloudMod*temp);
+}
+function windSpeed(t, mean, vvar){
+  const base = mean*(1+0.18*Math.sin(0.008*t)+0.12*Math.sin(0.021*t+1.1));
+  const gust = (rng()-0.5)*vvar*1.6;
+  return Math.max(0, base*(1+gust));
+}
+function windAvail(v, Pmax){
+  if(Pmax<=0) return 0;
+  if(v<3) return 0;
+  if(v<12){
+    const pu=(v-3)/(12-3);
+    return Pmax*pu*pu;
+  }
+  if(v<=25) return Pmax;
+  return 0;
 }
 
-/* -----------------------------
-  Rendering setup
------------------------------ */
-const powerChart = makeChart($("powerCanvas"), {
-  yLabel: "MW",
-  font: "12px ui-sans-serif, system-ui"
-});
+/* ==============================
+   4) Network solver (RMS-ish)
+   - Forward/Backward sweep for radial
+   - For ring: we “break” loops by iterating a few times with relaxed flows (fast & stable enough here)
+============================== */
+function buildAdj(top){
+  const idx = new Map(top.buses.map((b,i)=>[b.id,i]));
+  const children = Array(top.buses.length).fill(0).map(()=>[]);
+  const parent = Array(top.buses.length).fill(-1);
+  const pline  = Array(top.buses.length).fill(null);
 
-const stateChart = makeChart($("stateCanvas"), {
-  yLabel: "Hz / pu",
-  y2Label: "SOC (%)",
-  font: "12px ui-sans-serif, system-ui"
-});
-
-const COLORS = {
-  pv:    "#f59e0b",
-  wind:  "#b45309",
-  load:  "#374151",
-  diesel:"#2563eb",
-  bess:  "#10b981",
-  grid:  "#111827",
-
-  f:     "#111827",
-  vmin:  "#b42318",
-  soc:   "#027a48"
-};
-
-function buildLegend(el, items){
-  el.innerHTML = "";
-  for(const it of items){
-    const d = document.createElement("div");
-    d.className = "lg";
-    const sw = document.createElement("span");
-    sw.className = "sw";
-    sw.style.background = it.color;
-    const name = document.createElement("span");
-    name.textContent = it.label;
-    d.appendChild(sw);
-    d.appendChild(name);
-    el.appendChild(d);
+  // Build a spanning tree rooted at PCC using BFS over CLOSED lines
+  const lines = top.lines.filter(l=>l.closed);
+  const g = new Map();
+  for(const l of lines){
+    if(!g.has(l.from)) g.set(l.from,[]);
+    if(!g.has(l.to)) g.set(l.to,[]);
+    g.get(l.from).push({to:l.to, line:l});
+    g.get(l.to).push({to:l.from, line:l});
   }
-}
-
-buildLegend($("powerLegend"), [
-  {label:"PV (MW)", color:COLORS.pv},
-  {label:"Wind (MW)", color:COLORS.wind},
-  {label:"Load (MW)", color:COLORS.load},
-  {label:"Diesel (MW)", color:COLORS.diesel},
-  {label:"BESS (MW)", color:COLORS.bess},
-  {label:"Grid-tie (MW)", color:COLORS.grid},
-]);
-
-buildLegend($("stateLegend"), [
-  {label:"Frequency (Hz)", color:COLORS.f},
-  {label:"Vmin (pu)", color:COLORS.vmin},
-  {label:"SOC (%)", color:COLORS.soc},
-]);
-
-/* -----------------------------
-  Progressive render logic (the key fix)
-  - At any time, we compute idxNow = last index where x <= sim.t
-  - Then we slice arrays to that idx, so chart only draws history up to now
-  - Window mode: only draw last N minutes
------------------------------ */
-function lastIndexAtTime(arr, t){
-  // arr = [{x,y}, ...], x is time(s)
-  let lo=0, hi=arr.length-1, ans=-1;
-  while(lo<=hi){
-    const mid = (lo+hi)>>1;
-    if(arr[mid].x <= t){ ans=mid; lo=mid+1; } else hi=mid-1;
-  }
-  return ans;
-}
-
-function sliceForRender(arr, idxFrom, idxTo){
-  if(idxTo < 1) return [];
-  const a = Math.max(0, idxFrom);
-  const b = Math.min(arr.length, idxTo+1);
-  return arr.slice(a,b);
-}
-
-function renderAll(){
-  $("tNow").textContent = sim.t.toFixed(1);
-  $("runState").textContent = sim.running ? (sim.paused ? "paused" : "running") : "stopped";
-
-  const renderMode = $("powerRenderMode").value;
-  const windowMin = Math.max(1, Number($("windowMin").value) || 10);
-  const windowSec = windowMin * 60;
-
-  // Determine render time range
-  let xMin = 0;
-
-  // KEY FIX YOU ASKED: x-axis should not “pre-span” to 10s at t=0.
-  // It should grow with time (same feel as frequency). Still keep a tiny minimum to avoid divide-by-zero.
-  let xMax = Math.max(sim.t, 1);
-
-  if(renderMode === "window"){
-    xMin = Math.max(0, sim.t - windowSec);
-    xMax = Math.max(sim.t, xMin + 1);
-  }
-
-  // compute idx range based on time for each series (binary search)
-  const idxPv = lastIndexAtTime(series.pv, sim.t);
-  const idxWind = lastIndexAtTime(series.wind, sim.t);
-  const idxLoad = lastIndexAtTime(series.load, sim.t);
-  const idxDiesel = lastIndexAtTime(series.diesel, sim.t);
-  const idxBess = lastIndexAtTime(series.bess, sim.t);
-  const idxGrid = lastIndexAtTime(series.grid, sim.t);
-
-  // find idxFrom for window mode (approx via searching xMin)
-  const idxFromPv = renderMode==="window" ? lastIndexAtTime(series.pv, xMin) : 0;
-  const idxFromWind = renderMode==="window" ? lastIndexAtTime(series.wind, xMin) : 0;
-  const idxFromLoad = renderMode==="window" ? lastIndexAtTime(series.load, xMin) : 0;
-  const idxFromDiesel = renderMode==="window" ? lastIndexAtTime(series.diesel, xMin) : 0;
-  const idxFromBess = renderMode==="window" ? lastIndexAtTime(series.bess, xMin) : 0;
-  const idxFromGrid = renderMode==="window" ? lastIndexAtTime(series.grid, xMin) : 0;
-
-  const pPv = sliceForRender(series.pv, idxFromPv, idxPv);
-  const pWind = sliceForRender(series.wind, idxFromWind, idxWind);
-  const pLoad = sliceForRender(series.load, idxFromLoad, idxLoad);
-  const pDiesel = sliceForRender(series.diesel, idxFromDiesel, idxDiesel);
-  const pBess = sliceForRender(series.bess, idxFromBess, idxBess);
-  const pGrid = sliceForRender(series.grid, idxFromGrid, idxGrid);
-
-  // y range auto
-  const allP = [pPv,pWind,pLoad,pDiesel,pBess,pGrid].flat();
-  let yMin = 0, yMax = 1;
-  if(allP.length){
-    yMin = Math.min(...allP.map(p=>p.y));
-    yMax = Math.max(...allP.map(p=>p.y));
-    // pad range to avoid cramped top/bottom
-    const pad = (yMax-yMin || 1) * 0.12;
-    yMin -= pad; yMax += pad;
-  }
-
-  powerChart.render({
-    xMin, xMax,
-    yMin, yMax,
-    series: [
-      {data:pPv, color:COLORS.pv, width:2.2},
-      {data:pWind, color:COLORS.wind, width:2.0, alpha:.95},
-      {data:pLoad, color:COLORS.load, width:2.2},
-      {data:pDiesel, color:COLORS.diesel, width:2.1},
-      {data:pBess, color:COLORS.bess, width:2.1},
-      {data:pGrid, color:COLORS.grid, width:2.0, alpha:.9},
-    ]
-  });
-
-  // State chart
-  const idxF = lastIndexAtTime(series.f, sim.t);
-  const idxV = lastIndexAtTime(series.vmin, sim.t);
-  const idxS = lastIndexAtTime(series.soc, sim.t);
-
-  const idxFromF = renderMode==="window" ? lastIndexAtTime(series.f, xMin) : 0;
-  const idxFromV = renderMode==="window" ? lastIndexAtTime(series.vmin, xMin) : 0;
-  const idxFromS = renderMode==="window" ? lastIndexAtTime(series.soc, xMin) : 0;
-
-  const pF = sliceForRender(series.f, idxFromF, idxF);
-  const pV = sliceForRender(series.vmin, idxFromV, idxV);
-  const pS = sliceForRender(series.soc, idxFromS, idxS);
-
-  // y1 range covers Hz + pu on same axis (simple demo)
-  const allY1 = [pF,pV].flat();
-  let y1Min = 0.8, y1Max = 1.2;
-  if(allY1.length){
-    y1Min = Math.min(...allY1.map(p=>p.y));
-    y1Max = Math.max(...allY1.map(p=>p.y));
-    const pad = (y1Max-y1Min || 1)*0.18;
-    y1Min -= pad; y1Max += pad;
-  }
-
-  // y2 for SOC
-  let y2Min = 0, y2Max = 100;
-  if(pS.length){
-    y2Min = Math.min(...pS.map(p=>p.y));
-    y2Max = Math.max(...pS.map(p=>p.y));
-    const pad = (y2Max-y2Min || 1)*0.10;
-    y2Min = clamp(y2Min - pad, 0, 100);
-    y2Max = clamp(y2Max + pad, 0, 100);
-  }
-
-  stateChart.render({
-    xMin, xMax,
-    yMin: y1Min, yMax: y1Max,
-    y2: {min:y2Min, max:y2Max},
-    series: [
-      {data:pF, color:COLORS.f, width:2.2, y2:false},
-      {data:pV, color:COLORS.vmin, width:2.2, y2:false, alpha:.95},
-      {data:pS, color:COLORS.soc, width:2.0, y2:true, alpha:.95},
-    ]
-  });
-
-  updateTripUI();
-}
-
-/* -----------------------------
-  Demo engine tick
-  Replace with your microgrid-engine outputs.
------------------------------ */
-function demoSignals(t){
-  // Basic noisy profiles (MW)
-  const load = 2.2 + 0.35*Math.sin(t/18) + 0.15*Math.sin(t/4) + 0.12*(Math.random()-0.5);
-  const pv   = 0.8 + 0.6*Math.max(0, Math.sin((t/80)+0.6)) + 0.10*(Math.random()-0.5);
-  const wind = 1.1 + 0.8*Math.sin(t/10) + 0.25*(Math.random()-0.5);
-
-  let grid = sim.trip.gridConnected ? 0.6 + 0.4*Math.sin(t/25) : 0.0;
-
-  // Diesel + BESS try to balance (very simplified)
-  let net = load - (pv + wind + grid);
-  let diesel = clamp(net*0.55, 0, 3.2);
-  let bess = net - diesel;
-
-  // clamp BESS power
-  bess = clamp(bess, -2.0, 2.0);
-
-  // Frequency and Vmin (toy model)
-  const islandPenalty = sim.trip.gridConnected ? 0 : 1;
-  const freq = 60 + (islandPenalty? (-0.25 + 0.15*Math.sin(t/6)) : (0.05*Math.sin(t/9))) + 0.02*(Math.random()-0.5);
-
-  let vmin = 1.0 - (islandPenalty? 0.06 : 0.01) - 0.02*Math.max(0, net) + 0.01*Math.sin(t/7) + 0.01*(Math.random()-0.5);
-  vmin = clamp(vmin, 0.75, 1.05);
-
-  // SOC (toy integration)
-  const prevSoc = series.soc.length ? series.soc[series.soc.length-1].y : 55;
-  const soc = clamp(prevSoc - (bess*0.02) + 0.002*(Math.random()-0.5), 0, 100);
-
-  return {pv, wind, load, diesel, bess, grid, freq, vmin, soc};
-}
-
-/* -----------------------------
-  UVLS (demo effect)
-  Here we show structure; integrate with your real logic if needed.
------------------------------ */
-let uvls = { stage:0, lastTriggerT:null };
-
-function applyUvls(loadMw, vmin, t){
-  const stages = parseCommaPercents($("uvlsStages").value);
-  const UV = 0.88;         // demo threshold
-  const UV_DELAY = 0.25;   // demo delay seconds
-
-  if(vmin < UV){
-    if(uvls.lastTriggerT === null) uvls.lastTriggerT = t;
-    const belowFor = t - uvls.lastTriggerT;
-    if(belowFor >= UV_DELAY && uvls.stage < stages.length){
-      // shed next stage
-      const shedPct = stages[uvls.stage] / 100;
-      uvls.stage++;
-      uvls.lastTriggerT = t; // reset for next stage delay
-      return loadMw * (1 - shedPct);
-    }
-  }else{
-    uvls.lastTriggerT = null;
-    uvls.stage = 0;
-  }
-  return loadMw;
-}
-
-/* -----------------------------
-  Trip state progression in tick()
------------------------------ */
-
-/* ORIGINAL tickTripState left here (not used) to satisfy “code only increases”.
-function tickTripState(){
-  const st = sim.trip.state;
-  const t = sim.t;
-
-  if(st === "TRIP_COUNTDOWN"){
-    if(t >= sim.trip.tripAt){
-      // OPEN breaker now
-      sim.trip.gridConnected = false;
-      setTripState("TRIPPED_HOLD");
-      sim.trip.trippedAt = t;
-
-      // schedule reclose (explicit)
-      const recloseDelay = Number($("recloseDelay").value) || 0;
-      sim.trip.recloseDelay = recloseDelay;
-      sim.trip.recloseAt = t + recloseDelay;
-
-      // If delay is 0, immediately proceed
-      if(recloseDelay > 0){
-        setTripState("RECLOSE_COUNTDOWN");
-      }else{
-        sim.trip.gridConnected = true;
-        setTripState("RECLOSED");
-      }
+  const root = idx.get("PCC");
+  const q=[top.buses[root].id];
+  const seen = new Set([top.buses[root].id]);
+  while(q.length){
+    const u=q.shift();
+    const uI=idx.get(u);
+    for(const e of (g.get(u)||[])){
+      const v=e.to;
+      if(seen.has(v)) continue;
+      seen.add(v);
+      parent[idx.get(v)] = uI;
+      pline[idx.get(v)]  = e.line;
+      children[uI].push(idx.get(v));
+      q.push(v);
     }
   }
-  else if(st === "TRIPPED_HOLD"){
-    // In this simplified model we immediately go into reclose countdown
-    setTripState("RECLOSE_COUNTDOWN");
-  }
-  else if(st === "RECLOSE_COUNTDOWN"){
-    if(t >= sim.trip.recloseAt){
-      sim.trip.gridConnected = true;
-      setTripState("RECLOSED");
-    }
-  }
-  else if(st === "RECLOSED"){
-    // auto-return to ARMED
-    setTripState("ARMED");
-  }
-}
-*/
-
-// Updated trip machine: makes the “countdown” meaning unambiguous.
-// TRIP_COUNTDOWN counts to OPEN
-// TRIPPED_HOLD counts a short OPEN-confirm hold
-// RECLOSE_COUNTDOWN counts to CLOSE
-function tickTripState_v2(){
-  const st = sim.trip.state;
-  const t = sim.t;
-
-  if(st === "TRIP_COUNTDOWN"){
-    if(t >= sim.trip.tripAt){
-      // OPEN breaker now
-      sim.trip.gridConnected = false;
-      sim.trip.trippedAt = t;
-
-      // Hold OPEN briefly so UI can clearly show “OPEN confirmed”
-      sim.trip.openConfirmedAt = t + (sim.trip.openConfirmHold || 0);
-
-      setTripState("TRIPPED_HOLD");
-    }
-  }
-  else if(st === "TRIPPED_HOLD"){
-    // wait until OPEN hold expires, then schedule/enter reclose countdown
-    if(sim.trip.openConfirmedAt != null && t >= sim.trip.openConfirmedAt){
-      const recloseDelay = Number($("recloseDelay").value) || 0;
-      sim.trip.recloseDelay = recloseDelay;
-      sim.trip.recloseAt = t + recloseDelay;
-
-      if(recloseDelay > 0){
-        setTripState("RECLOSE_COUNTDOWN");
-      }else{
-        sim.trip.gridConnected = true;
-        setTripState("RECLOSED");
-      }
-    }
-  }
-  else if(st === "RECLOSE_COUNTDOWN"){
-    if(t >= sim.trip.recloseAt){
-      sim.trip.gridConnected = true;
-      setTripState("RECLOSED");
-    }
-  }
-  else if(st === "RECLOSED"){
-    // auto-return to ARMED
-    setTripState("ARMED");
-  }
+  return {idx, children, parent, pline};
 }
 
-/* -----------------------------
-  Main loop
------------------------------ */
-let raf = null;
-let lastWall = null;
+function solveVoltages(top, injections, grid){
+  // injections: per bus {P, Q} net into bus (generation positive, load negative)
+  // grid: {pccClosed, gridStrength, scr, Vgrid_pu}
+  const {idx, children, parent, pline} = buildAdj(top);
+  const n = top.buses.length;
 
-function loop(wallTs){
-  if(!sim.running) return;
+  // Initialize bus voltage guesses
+  const V = new Array(n).fill(1.0);
+  const Pflow = new Array(n).fill(0); // power flow on parent line into this bus subtree (MW)
+  const Qflow = new Array(n).fill(0);
+  const Iest  = new Array(n).fill(0);
 
-  if(sim.paused){
-    lastWall = wallTs;
-    raf = requestAnimationFrame(loop);
+  // PCC voltage
+  const Vgrid = 1.0;
+  if(!grid.pccClosed) {
+    // Island: PCC bus is just the SWY side; still reference magnitude ~1.0 for per-unit,
+    // absolute deviations come from distribution drops. Keep PCC as 1.0 anchor.
+    V[idx.get("PCC")] = 1.0;
+  } else {
+    if(grid.gridStrength==="strong"){
+      V[idx.get("PCC")] = Vgrid;
+    } else {
+      // Weak grid: PCC voltage droops with tie power (approx). This is a stiffness proxy.
+      // We apply later once tie power is computed. Start at 1.0.
+      V[idx.get("PCC")] = Vgrid;
+    }
+  }
+
+  // For looped networks, we still use the spanning tree and accept approximate results.
+  // This keeps browser sim stable and “real enough” for planning logic & protection.
+
+  // Backward sweep: compute subtree power (loads - gens)
+  function dfsBack(u){
+    let P = -injections[u].P; // convert to "demand" in subtree (positive demand)
+    let Q = -injections[u].Q;
+    for(const c of children[u]){
+      dfsBack(c);
+      P += Pflow[c];
+      Q += Qflow[c];
+    }
+    Pflow[u]=P; Qflow[u]=Q;
+  }
+  dfsBack(idx.get("PCC"));
+
+  // Forward sweep: compute voltages along tree using simplified DistFlow drop:
+  // ΔV ≈ (r*P + x*Q) / V
+  function dfsFwd(u){
+    for(const c of children[u]){
+      const line = pline[c];
+      const Pu = Pflow[c]; // MW demand downstream
+      const Qu = Qflow[c];
+      const Vu = Math.max(0.80, Math.min(1.20, V[u]));
+      const dV = (line.r*Pu + line.x*Qu) / Math.max(0.6, Vu);
+      V[c] = clamp(Vu - dV, 0.6, 1.25);
+      Iest[c] = Math.sqrt(Pu*Pu + Qu*Qu) / Math.max(0.6, V[c]); // pseudo-current
+      dfsFwd(c);
+    }
+  }
+  dfsFwd(idx.get("PCC"));
+
+  // Line overload flags (MVA approx)
+  const lineStatus = [];
+  for(const l of top.lines){
+    if(!l.closed){ lineStatus.push({id:l.id, closed:false, overload:false, S:0}); continue; }
+    // If line is in tree, compute from its downstream node if available
+    const toI = idx.get(l.to), fromI = idx.get(l.from);
+    // pick direction by parent relationship
+    let down = -1;
+    if(parent[toI]===fromI) down = toI;
+    else if(parent[fromI]===toI) down = fromI;
+    if(down<0){
+      // chord line (loop edge): skip detailed flow, estimate 0
+      lineStatus.push({id:l.id, closed:true, overload:false, S:0});
+      continue;
+    }
+    const S = Math.sqrt(Pflow[down]*Pflow[down] + Qflow[down]*Qflow[down]);
+    lineStatus.push({id:l.id, closed:true, overload: S > l.rateMVA*1.05, S});
+  }
+
+  const Vmin = Math.min(...V);
+  return {V, Vmin, lineStatus, subtreeDemandMW:Pflow[idx.get("PCC")]};
+}
+
+/* ==============================
+   5) Dispatch & controls
+============================== */
+function buildDieselFleet(n33,n12, allowOff){
+  const fleet=[];
+  for(let i=0;i<6;i++) fleet.push({cap:3.3, type:"DG3.3", online:i<n33, P:(i<n33)?3.3*0.7:0, timer:0, starting:false, stopping:false});
+  for(let i=0;i<2;i++) fleet.push({cap:1.25,type:"DG1.25",online:i<n12, P:(i<n12)?1.25*0.7:0, timer:0, starting:false, stopping:false});
+  if(!allowOff && fleet.filter(x=>x.online).length===0){
+    fleet[0].online=true; fleet[0].P=fleet[0].cap*0.7;
+  }
+  return fleet;
+}
+
+function dieselDispatch(st, dt, fpu, residualMW){
+  const u=st.dg.fleet;
+  let onlineCap=u.reduce((a,x)=>a+(x.online?x.cap:0),0);
+  const largest=Math.max(0,...u.filter(x=>x.online).map(x=>x.cap));
+  const need=Math.max(0,residualMW);
+  st.n1_ok=((onlineCap-largest)>=need*0.95);
+
+  // capacity management
+  const desiredCap=(need>0)?need/0.75:(st.dg.allowOff?0:3.3);
+  const upH=st.dg.hyster, dnH=st.dg.hyster*1.3;
+  if(onlineCap<desiredCap-upH){ if(!startOne("DG3.3")) startOne("DG1.25"); }
+  else if(onlineCap-desiredCap>dnH && !st.freezeReduce && st.bess.E/st.bess.Emax>0.30){ stopOne(); }
+
+  // timers
+  for(const x of u){
+    if(x.starting){ x.timer-=dt; if(x.timer<=0){ x.starting=false; x.online=true; x.P=x.cap*0.65; st.log(`${ts(st.t)} Sync in: ${x.type}`); } }
+    if(x.stopping){ x.P=Math.max(0,x.P-st.dg.rampDn*dt*1.5); x.timer-=dt; if(x.timer<=0){ x.stopping=false; x.online=false; x.P=0; st.log(`${ts(st.t)} Island off: ${x.type}`); } }
+  }
+
+  const online=u.filter(x=>x.online);
+  const PdgMax=online.reduce((a,x)=>a+x.cap,0);
+  const droopAdj=-fpu/Math.max(0.001,st.dg.Rdg)*PdgMax;
+  let Pd_ref=clamp(need+droopAdj,0,PdgMax);
+  const sumMin=online.reduce((a,x)=>a+x.cap*st.dg.minPu,0);
+  if(Pd_ref<sumMin) Pd_ref=sumMin;
+  if(st.f-st.f0>0.2) Pd_ref=Math.min(Pd_ref,sumMin+0.2*(PdgMax-sumMin));
+
+  const per=(online.length>0)?Pd_ref/online.length:0;
+  for(const x of online){
+    const minP=x.cap*st.dg.minPu;
+    const target=clamp(per,minP,x.cap);
+    const ramp=(target<x.P)?st.dg.rampDn:st.dg.rampUp;
+    const dP=clamp(target-x.P,-ramp*dt,ramp*dt);
+    x.P=clamp(x.P+dP,0,x.cap);
+  }
+  return online.reduce((a,x)=>a+x.P,0);
+
+  function startOne(type){
+    const c=u.find(x=>!x.online && !x.starting && x.type===type);
+    if(c){ c.starting=true; c.timer=st.dg.delay; st.log(`${ts(st.t)} Start cmd: ${type}`); return true; }
+    return false;
+  }
+  function stopOne(){
+    const c=u.find(x=>x.online && !x.stopping && !x.starting && x.P<x.cap*0.6);
+    if(c){ c.stopping=true; c.timer=st.dg.delay; st.log(`${ts(st.t)} Stop cmd: ${c.type}`); return true; }
+    return false;
+  }
+}
+
+function bessControl(st, dt, fpu, Pinj_pre){
+  if(st.bess.Pmax<=0 || st.bess.Emax<=0){ st.bess.P=0; return; }
+  const Pmax=st.bess.Pmax;
+  const soc=st.bess.E/st.bess.Emax;
+
+  // 3-term: cancel net injection + droop + energy restore
+  const P_corr=clamp(-Pinj_pre,-Pmax,Pmax);
+  const P_droop=clamp(-fpu/Math.max(0.001,st.bess.R)*Pmax,-Pmax,Pmax);
+  const err=(st.bess.socTarget - soc);
+  const P_energy=clamp(err*Pmax*0.25,-0.6*Pmax,0.6*Pmax);
+
+  let Pcmd=0.60*P_corr + 0.30*P_droop + 0.10*P_energy;
+
+  // soft soc walls
+  const soft=0.08;
+  if(soc<soft) Pcmd=Math.min(Pcmd,0);
+  if(soc>1-soft) Pcmd=Math.max(Pcmd,0);
+
+  st.bess.P = clamp(Pcmd,-Pmax,Pmax);
+}
+
+/* ==============================
+   6) Protection + UVLS + PCC sync-check
+============================== */
+function parseUvlsStages(txt){
+  const xs = (txt||"").split(",").map(s=>parseFloat(s.trim())).filter(x=>isFinite(x)&&x>0);
+  return xs.map(p=>p/100);
+}
+
+function syncCheck(st){
+  const df = Math.abs(st.f - st.f0);
+  const dv = Math.abs(st.Vpcc - 1.0);
+  const dfMax = +UI.syncDf.value;
+  const dvMax = +UI.syncDv.value;
+  return (df<=dfMax && dv<=dvMax);
+}
+
+/* ==============================
+   7) Plotting (minimal, no libs)
+============================== */
+const PCTX=UI.pPlot.getContext("2d");
+const FCTX=UI.fPlot.getContext("2d");
+function resizeCanvas(c){
+  const DPR=window.devicePixelRatio||1;
+  c.width = Math.floor(c.clientWidth*DPR);
+  c.height= Math.floor(c.clientHeight*DPR);
+}
+function drawGrid(ctx,w,h){
+  ctx.strokeStyle="#f3f4f6"; ctx.lineWidth=1;
+  for(let i=0;i<5;i++){
+    const y=(i/4)*(h-36)+18;
+    ctx.beginPath(); ctx.moveTo(40,y); ctx.lineTo(w-12,y); ctx.stroke();
+  }
+}
+function drawLine(ctx,xs,ys,color,dash=false){
+  ctx.beginPath();
+  ctx.setLineDash(dash?[6,6]:[]);
+  for(let i=0;i<xs.length;i++){
+    if(i===0) ctx.moveTo(xs[i],ys[i]); else ctx.lineTo(xs[i],ys[i]);
+  }
+  ctx.strokeStyle=color; ctx.lineWidth=2.4; ctx.stroke();
+  ctx.setLineDash([]);
+}
+const COLORS={pv:"#E69F00", wind:"#D55E00", load:"#374151", diesel:"#0072B2", bess:"#009E73", grid:"#111827", freq:"#6A3D9A", vmin:"#f59e0b", soc:"#009E73"};
+
+function ensureLegend(){
+  // Power legend (match curve colors + text color)
+  UI.pLegend.innerHTML = `
+    <span class="item" style="color:${COLORS.pv}"><span class="swatch" style="background:${COLORS.pv}"></span><b>PV</b> <span class="kv muted">MW</span></span>
+    <span class="item" style="color:${COLORS.wind}"><span class="swatch" style="background:${COLORS.wind}"></span><b>Wind</b> <span class="kv muted">MW</span></span>
+    <span class="item" style="color:${COLORS.load}"><span class="swatch" style="background:${COLORS.load}"></span><b>Load</b> <span class="kv muted">MW</span></span>
+    <span class="item" style="color:${COLORS.diesel}"><span class="swatch" style="background:${COLORS.diesel}"></span><b>Diesel</b> <span class="kv muted">MW</span></span>
+    <span class="item" style="color:${COLORS.bess}"><span class="swatch" style="background:${COLORS.bess}"></span><b>BESS</b> <span class="kv muted">MW</span></span>
+    <span class="item" style="color:${COLORS.grid}"><span class="swatch" style="background:${COLORS.grid}"></span><b>Grid-tie</b> <span class="kv muted">MW</span></span>
+  `;
+  // F/V/SOC legend
+  UI.fLegend.innerHTML = `
+    <span class="item" style="color:${COLORS.freq}"><span class="swatch" style="background:${COLORS.freq}"></span><b>Frequency</b> <span class="kv muted">Hz</span></span>
+    <span class="item" style="color:${COLORS.vmin}"><span class="swatch" style="background:${COLORS.vmin}"></span><b>Vmin</b> <span class="kv muted">pu</span></span>
+    <span class="item" style="color:${COLORS.soc}"><span class="swatch" style="background:${COLORS.soc}"></span><b>SOC</b> <span class="kv muted">%</span></span>
+  `;
+}
+
+function drawYAxisTicks(ctx, w, h, yFn, vMin, vMax, unit, color="#6b7280"){
+  const DPR=window.devicePixelRatio||1;
+  ctx.fillStyle=color;
+  ctx.font=`${10*DPR}px sans-serif`;
+  const ticks=4;
+  for(let k=0;k<=ticks;k++){
+    const v = vMax - (k/ticks)*(vMax-vMin);
+    const y = yFn(v);
+    ctx.fillText(`${v.toFixed(2)} ${unit}`, 6, y+3);
+  }
+  // axis label
+  ctx.fillStyle="#374151";
+  ctx.font=`${11*DPR}px sans-serif`;
+  ctx.fillText(unit, 10, 14);
+}
+
+function plotPower(st){
+  if(!st.started){ return; }
+  resizeCanvas(UI.pPlot);
+  const w=UI.pPlot.width,h=UI.pPlot.height;
+  PCTX.clearRect(0,0,w,h);
+  if(st.series.length<2) return;
+
+  const seg=st.series.slice(Math.max(0,st.series.length-2000));
+  const t0=seg[0].t, t1=seg[seg.length-1].t;
+  const xs=seg.map(d=>((d.t-t0)/(t1-t0||1))*(w-60)+40);
+
+  const all=seg.flatMap(d=>[d.Ppv,d.Pwind,d.Pload,d.Pdg,d.Pb,d.Pgrid]);
+  const pmin=Math.min(0,...all), pmax=Math.max(...all,1);
+  const y=v=>(1-(v-pmin)/(pmax-pmin||1))*(h-36)+18;
+
+  drawGrid(PCTX,w,h);
+
+  // y-axis ticks with MW
+  drawYAxisTicks(PCTX,w,h,y,pmin,pmax,"MW");
+
+  // zero line
+  const y0=y(0);
+  PCTX.beginPath(); PCTX.moveTo(40,y0); PCTX.lineTo(w-12,y0);
+  PCTX.setLineDash([5,5]); PCTX.strokeStyle="#9ca3af"; PCTX.lineWidth=1.2; PCTX.stroke(); PCTX.setLineDash([]);
+
+  drawLine(PCTX,xs,seg.map(d=>y(d.Ppv)),COLORS.pv,false);
+  drawLine(PCTX,xs,seg.map(d=>y(d.Pwind)),COLORS.wind,true);
+  drawLine(PCTX,xs,seg.map(d=>y(d.Pload)),COLORS.load,false);
+  drawLine(PCTX,xs,seg.map(d=>y(d.Pdg)),COLORS.diesel,false);
+  drawLine(PCTX,xs,seg.map(d=>y(d.Pb)),COLORS.bess,true);
+  drawLine(PCTX,xs,seg.map(d=>y(d.Pgrid)),COLORS.grid,false);
+
+  // x-axis labels (hours)
+  PCTX.fillStyle="#374151"; PCTX.font=`${11*(window.devicePixelRatio||1)}px sans-serif`;
+  const ticks=4;
+  for(let k=0;k<=ticks;k++){
+    const tk=t0+(k/ticks)*(t1-t0);
+    const x=40+(k/ticks)*(w-60);
+    PCTX.fillText(`${(tk/3600).toFixed(2)} h`,x-18,h-6);
+  }
+
+  // small in-canvas caption (kept subtle)
+  PCTX.fillStyle="#6b7280";
+  PCTX.font=`${10*(window.devicePixelRatio||1)}px sans-serif`;
+  PCTX.fillText("Power", 44, 16);
+}
+
+function plotFreq(st){
+  if(!st.started){ return; }
+  resizeCanvas(UI.fPlot);
+  const w=UI.fPlot.width,h=UI.fPlot.height;
+  FCTX.clearRect(0,0,w,h);
+  if(st.series.length<2) return;
+
+  const seg=st.series.slice(Math.max(0,st.series.length-2000));
+  const t0=seg[0].t, t1=seg[seg.length-1].t;
+  const xs=seg.map(d=>((d.t-t0)/(t1-t0||1))*(w-60)+40);
+
+  const f0=st.f0;
+  const fVals=seg.map(d=>d.f);
+  const vVals=seg.map(d=>d.Vmin);
+  const sVals=seg.map(d=>d.soc);
+
+  let fmin=Math.min(...fVals,f0-1.0), fmax=Math.max(...fVals,f0+1.0);
+  if(fmax-fmin<0.2){ fmin=f0-1.0; fmax=f0+1.0; }
+  const yF=v=>(1-(v-fmin)/(fmax-fmin||1))*(h-36)+18;
+  const yV=v=>(1-(v-0.6)/(1.2-0.6))*(h-36)+18;  // Vmin in fixed pu band
+  const yS=v=>(1-(v-0)/(100-0||1))*(h-36)+18;     // SOC in 0-100%
+
+  drawGrid(FCTX,w,h);
+
+  // Hz y-axis ticks
+  drawYAxisTicks(FCTX,w,h,yF,fmin,fmax,"Hz");
+
+  // f0 line
+  const y60=yF(f0);
+  FCTX.beginPath(); FCTX.moveTo(40,y60); FCTX.lineTo(w-12,y60);
+  FCTX.strokeStyle="#9ca3af"; FCTX.lineWidth=1; FCTX.stroke();
+  FCTX.fillStyle="#6b7280"; FCTX.font=`${10*(window.devicePixelRatio||1)}px sans-serif`;
+  FCTX.fillText(`${f0.toFixed(0)} Hz`, 44, y60-4);
+
+  drawLine(FCTX,xs,fVals.map(yF),COLORS.freq,false);
+  drawLine(FCTX,xs,vVals.map(yV),COLORS.vmin,true);
+  drawLine(FCTX,xs,sVals.map(yS),COLORS.soc,true);
+
+  const last=st.series[st.series.length-1];
+  UI.live.textContent =
+    `t=${(last.t/3600).toFixed(2)}h | f=${last.f.toFixed(3)}Hz | Δf=${(last.f-st.f0>=0?"+":"")}${(last.f-st.f0).toFixed(3)}Hz | `+
+    `Vmin=${last.Vmin.toFixed(3)}pu | Pgrid=${last.Pgrid.toFixed(2)}MW | SOC=${last.soc.toFixed(1)}%`;
+  UI.live.classList.remove("muted");
+
+  FCTX.fillStyle="#374151"; FCTX.font=`${11*(window.devicePixelRatio||1)}px sans-serif`;
+  const ticks=4;
+  for(let k=0;k<=ticks;k++){
+    const tk=t0+(k/ticks)*(t1-t0);
+    const x=40+(k/ticks)*(w-60);
+    FCTX.fillText(`${(tk/3600).toFixed(2)} h`,x-18,h-6);
+  }
+
+  FCTX.fillStyle="#6b7280";
+  FCTX.font=`${10*(window.devicePixelRatio||1)}px sans-serif`;
+  FCTX.fillText("Frequency / Vmin / SOC", 44, 16);
+}
+
+/* ==============================
+   8) State + initialization
+============================== */
+let ST=null;
+
+function defaultEvents(){
+  return [
+    {t_s: 2*3600, type:"motor_start", bus:"MILL", mw:2.5, sec:12},
+    {t_s: 6*3600+30, type:"pcc_open"},
+    {t_s: 7*3600, type:"load_step", bus:"CRUSH", mw:+1.0},
+    {t_s: 9*3600, type:"pcc_close"},
+    {t_s: 12*3600, type:"pv_cloud", factor:0.75, sec:900},
+    {t_s: 15*3600, type:"wind_gust", add_mps:6, sec:120}
+  ];
+}
+
+function initEventScript(){
+  UI.eventScript.value = JSON.stringify(defaultEvents(), null, 2);
+}
+
+function setPccUiState(){
+  if(!ST){
+    UI.pccDot.className = "dot";
+    UI.pccStatusText.textContent = "PCC: —";
+    UI.tripGridBtn.disabled = false;
+    UI.attemptRecloseBtn.disabled = false;
+    return;
+  }
+  const closed = !!ST.grid.pccClosed;
+  UI.pccDot.className = "dot " + (closed ? "ok" : "bad");
+  UI.pccStatusText.textContent = `PCC: ${closed ? "CLOSED (Grid)" : "OPEN (Island)"}`;
+
+  // Button enable logic (persistently consistent)
+  UI.tripGridBtn.disabled = !closed;
+  UI.attemptRecloseBtn.disabled = closed;
+
+  // Protection status
+  const p = ST.prot;
+  if(p.tripped){
+    UI.protDot.className = "dot bad";
+    UI.protStatusText.textContent = `Protection: TRIPPED (${Math.max(0,p.tripLeft).toFixed(0)}s)`;
+  } else {
+    UI.protDot.className = "dot ok";
+    UI.protStatusText.textContent = "Protection: ARMED";
+  }
+}
+
+function initState(){
+  const topo = presetTopology(UI.topoPreset.value);
+  const allowOff = (UI.allowDieselOff.value==="true");
+
+  let events=[];
+  try{
+    events = JSON.parse(UI.eventScript.value||"[]");
+    if(!Array.isArray(events)) events=[];
+  }catch{ events=[]; }
+
+  const uvlsStages = parseUvlsStages(UI.uvls.value);
+
+  const f0_in = parseFloat(UI.f0.value);
+  const f0 = (isFinite(f0_in)&&f0_in>=40&&f0_in<=65)?f0_in:60;
+
+  ST = {
+    run_id: `run_${Date.now()}`,
+    started:false,
+    running:false,
+    topo,
+    events: events.slice().sort((a,b)=> (a.t_s||0)-(b.t_s||0)),
+    evIndex: 0,
+
+    t:0,
+    T: +UI.simHours.value*3600,
+    dtBase:+UI.dtBase.value,
+    dtEvent:+UI.dtEvent.value,
+    dtWin:+UI.dtWinSec.value,
+
+    f0, f:f0, dfdt:0,
+    D:+UI.Dsys.value,
+    alpha:+UI.alphaLoad.value/100,
+    rocMax:+UI.rocMax.value,
+
+    grid:{
+      pccClosed: (UI.pccClosed.value==="true"),
+      gridStrength: UI.gridStrength.value,
+      scr: +UI.scr.value,
+      Vgrid: 1.0,
+      syncHoldReq:+UI.syncHold.value,
+      syncHold:0
+    },
+
+    // DER params
+    pv:{Pmax:+UI.PpvMax.value, cloud:+UI.pvCloud.value, cloudFactor:1.0, cloudLeft:0, curtailedMWh:0, trips:0},
+    wind:{Pmax:+UI.PwindMax.value, mean:+UI.windMean.value, vvar:+UI.windVar.value, gustAdd:0, gustLeft:0, curtailedMWh:0, trips:0},
+
+    dg:{
+      fleet: buildDieselFleet(+UI.dg33n.value, +UI.dg12n.value, allowOff),
+      Rdg:(+UI.Rdg.value)/100,
+      minPu:+UI.dgMinPu.value,
+      rampUp:+UI.rampUp.value,
+      rampDn:+UI.rampDn.value,
+      delay:+UI.dgDelay.value,
+      hyster:+UI.dgHyst.value,
+      allowOff,
+      HperMW:0.5
+    },
+
+    bess:{
+      Pmax:+UI.PbMax.value,
+      Emax:+UI.EbMax.value,
+      E:+UI.EbMax.value*(+UI.soc0.value/100),
+      R:(+UI.Rvsg.value)/100,
+      H:+UI.Hvsg.value,
+      P:0,
+      socTarget:0.55
+    },
+
+    // Protection
+    prot:{
+      uf:+UI.uf.value,
+      of:+UI.of.value,
+      uv:+UI.uv.value,
+      ov:+UI.ov.value,
+      delay:+UI.protDelay.value,
+      reclose:+UI.reclose.value,
+      // latch timers
+      uf_t:0, of_t:0, uv_t:0, ov_t:0,
+      tripped:false,
+      tripLeft:0
+    },
+    uvls:{
+      stages: uvlsStages,
+      shedStage:0, // how many applied
+      shedFrac:0,  // total shed fraction
+      actions:0
+    },
+
+    // KPI accumulators
+    fuelL:0,
+    fuelBaselineL:0,
+    E_load:0,
+    E_RE:0,
+    n1_ok:true,
+    Vpcc:1.0,
+    Vmin:1.0,
+    trips:0,
+
+    // Motor-start event injection (extra MW for seconds with exponential recovery)
+    motor:{active:false, bus:null, mw:0, left:0, tau:3.0},
+
+    // Logs + time series
+    series:[],
+    csvHeader: ["t_s","f_Hz","Vmin_pu","Vpcc_pu","P_load_MW","P_pv_MW","P_wind_MW","P_diesel_MW","P_bess_MW","P_grid_MW","SOC_pct","pccClosed","uvlsStage"],
+    log:(s)=>{ UI.log.classList.remove("muted"); UI.log.textContent += s+"\n"; UI.log.scrollTop=UI.log.scrollHeight; },
+
+    // last totals
+    P:{load:0, pv:0, wind:0, dg:0, bess:0, grid:0}
+  };
+
+  UI.log.textContent = "[Idle] Press Start…";
+  UI.log.classList.add("muted");
+
+  rng = mulberry32(123456);
+  UI.pOverlay.style.display = "flex";
+  UI.fOverlay.style.display = "flex";
+  UI.live.textContent = "—";
+  UI.live.classList.add("muted");
+
+  ensureLegend();
+  updateBadges();
+  refreshKPI();
+  setPccUiState();
+  plotPower(ST);
+  plotFreq(ST);
+}
+
+function updateBadges(){
+  if(!ST){ UI.modeBadge.textContent="MODE: —"; UI.tBadge.textContent="t=—"; return; }
+  const mode = ST.grid.pccClosed ? `GRID (${ST.grid.gridStrength.toUpperCase()})` : "ISLAND";
+  UI.modeBadge.textContent = `MODE: ${mode}`;
+  UI.tBadge.textContent = `t=${(ST.t/3600).toFixed(2)}h`;
+}
+
+/* ==============================
+   9) Event handling
+============================== */
+function applyEvent(ev){
+  if(!ev || !ST) return;
+  const t = ST.t;
+  const type = ev.type;
+
+  if(type==="pcc_open"){
+    ST.grid.pccClosed=false;
+    UI.pccClosed.value="false";
+    ST.log(`${ts(t)} EVENT: PCC OPEN (grid lost)`);
+    setPccUiState();
     return;
   }
 
-  if(lastWall === null) lastWall = wallTs;
-  const wallDt = Math.min(0.05, Math.max(0, (wallTs - lastWall) / 1000));
-  lastWall = wallTs;
+  if(type==="pcc_close"){
+    // We don't force-close. Use attemptReclose logic (sync-check)
+    ST.log(`${ts(t)} EVENT: PCC CLOSE requested`);
+    attemptReclose();
+    return;
+  }
 
-  const speed = Number($("speed").value) || 1;
-  sim.speed = speed;
+  if(type==="motor_start"){
+    ST.motor.active=true;
+    ST.motor.bus = ev.bus || "MILL";
+    ST.motor.mw = Math.max(0, +ev.mw || 2.0);
+    ST.motor.left = Math.max(1, +ev.sec || 10);
+    ST.log(`${ts(t)} EVENT: Motor start @${ST.motor.bus} +${ST.motor.mw.toFixed(2)}MW for ${ST.motor.left}s`);
+    return;
+  }
 
-  // advance simulation time
-  sim.dt = Number($("dt").value) || 0.5;
-  // We advance in fixed steps for stable series density
-  let steps = Math.floor((wallDt * speed) / sim.dt);
-  steps = clamp(steps, 1, 20);
+  if(type==="load_step"){
+    const bus = ev.bus;
+    const mw = +ev.mw || 0;
+    const ld = ST.topo.loads.find(x=>x.bus===bus);
+    if(ld){ ld.Pmw = Math.max(0, ld.Pmw + mw); ST.log(`${ts(t)} EVENT: Load step @${bus} ${mw>=0?"+":""}${mw}MW`); }
+    return;
+  }
 
-  for(let k=0;k<steps;k++){
-    sim.t += sim.dt;
+  if(type==="pv_cloud"){
+    const factor = clamp(+ev.factor||0.8, 0.2, 1.2);
+    ST.pv.cloudFactor = factor;
+    ST.pv.cloudLeft = Math.max(1, +ev.sec||600);
+    ST.log(`${ts(t)} EVENT: PV cloud factor=${factor} for ${ST.pv.cloudLeft}s`);
+    return;
+  }
 
-    // trip state progression (use v2)
-    tickTripState_v2();
+  if(type==="wind_gust"){
+    ST.wind.gustAdd = (+ev.add_mps||5);
+    ST.wind.gustLeft = Math.max(1, +ev.sec||60);
+    ST.log(`${ts(t)} EVENT: Wind gust +${ST.wind.gustAdd}m/s for ${ST.wind.gustLeft}s`);
+    return;
+  }
+}
 
-    // generate signals
-    const s = demoSignals(sim.t);
+function consumeEvents(){
+  while(ST.evIndex < ST.events.length){
+    const ev = ST.events[ST.evIndex];
+    if((ev.t_s||0) <= ST.t + 1e-9){
+      applyEvent(ev);
+      ST.evIndex++;
+    } else break;
+  }
+}
 
-    // UVLS demo: modify load based on Vmin
-    const load2 = applyUvls(s.load, s.vmin, sim.t);
+/* ==============================
+   10) PCC reclose (sync-check)
+============================== */
+function attemptReclose(){
+  if(!ST) return;
+  if(ST.grid.pccClosed){ ST.log(`${ts(ST.t)} Reclose: already closed`); setPccUiState(); return; }
 
-    pushPoint(series.pv, sim.t, s.pv);
-    pushPoint(series.wind, sim.t, s.wind);
-    pushPoint(series.load, sim.t, load2);
-    pushPoint(series.diesel, sim.t, s.diesel);
-    pushPoint(series.bess, sim.t, s.bess);
-    pushPoint(series.grid, sim.t, s.grid);
+  const ok = syncCheck(ST);
+  if(ok){
+    ST.grid.syncHold += ST.dtBase;
+    if(ST.grid.syncHold >= ST.grid.syncHoldReq){
+      ST.grid.pccClosed=true;
+      UI.pccClosed.value="true";
+      ST.log(`${ts(ST.t)} PCC CLOSED (sync OK held ${ST.grid.syncHoldReq}s)`);
+      ST.grid.syncHold=0;
+      setPccUiState();
+    } else {
+      ST.log(`${ts(ST.t)} Sync OK, holding... ${ST.grid.syncHold.toFixed(1)}/${ST.grid.syncHoldReq}s`);
+      setPccUiState();
+    }
+  } else {
+    ST.grid.syncHold=0;
+    ST.log(`${ts(ST.t)} Reclose blocked: sync-check failed (|Δf| or |ΔV| too large)`);
+    setPccUiState();
+  }
+}
 
-    pushPoint(series.f, sim.t, s.freq);
-    pushPoint(series.vmin, sim.t, s.vmin);
-    pushPoint(series.soc, sim.t, s.soc);
+/* ==============================
+   11) Main step
+============================== */
+function computeDt(){
+  // If within dtWinSec of any major switching event time, use dtEvent
+  const t = ST.t;
+  const win = ST.dtWin;
+  const dtBase = ST.dtBase, dtEvent=ST.dtEvent;
+  for(let i=ST.evIndex;i<ST.events.length && i<ST.evIndex+5;i++){
+    const ev=ST.events[i];
+    const type=ev.type;
+    if(type==="pcc_open" || type==="pcc_close" || type==="motor_start"){
+      const te=+ev.t_s||0;
+      if(Math.abs(te - t) <= win) return dtEvent;
+    }
+  }
+  return dtBase;
+}
 
-    // keep arrays bounded (avoid infinite memory)
-    const MAX_POINTS = 20000;
-    for(const key of Object.keys(series)){
-      if(Array.isArray(series[key]) && series[key].length > MAX_POINTS){
-        series[key].splice(0, series[key].length - MAX_POINTS);
-      }
+function loadAtBusMWQ(busId, f, Vpu){
+  // Base loads from topology
+  // ZIP: Z proportional V^2, I proportional V, P constant
+  // Frequency sensitivity: P scales with (1 - alpha*(f-f0)/f0)
+  const f0=ST.f0;
+  const droop = (1 - ST.alpha*((f-f0)/f0));
+  let P=0, Q=0;
+
+  for(const ld of ST.topo.loads){
+    if(ld.bus!==busId) continue;
+    const zip = ld.zip||[0,0,1];
+    const V = clamp(Vpu,0.6,1.25);
+    const zPart = zip[0]*V*V;
+    const iPart = zip[1]*V;
+    const pPart = zip[2]*1.0;
+    const scaleV = zPart + iPart + pPart;
+    P += Math.max(0, ld.Pmw * scaleV * droop);
+    Q += Math.max(0, ld.Qmvar * scaleV); // keep Q voltage-dependent only (simple)
+  }
+
+  // Motor-start additive load (big realistic miner pain)
+  if(ST.motor.active && ST.motor.bus===busId && ST.motor.left>0){
+    // exponential decay over tau
+    const frac = Math.exp(-( (ST.motor.totalSec - ST.motor.left) / ST.motor.tau ));
+    P += ST.motor.mw * Math.max(0.25, frac);
+    // motor start tends to add reactive too
+    Q += 0.6*ST.motor.mw * Math.max(0.25, frac);
+  }
+
+  // UVLS shedding
+  const shed = ST.uvls.shedFrac;
+  P *= (1 - shed);
+  Q *= (1 - shed);
+
+  return {P,Q};
+}
+
+function updateMotor(dt){
+  if(!ST.motor.active) return;
+  if(ST.motor.totalSec==null) ST.motor.totalSec = ST.motor.left;
+  ST.motor.left -= dt;
+  if(ST.motor.left<=0){
+    ST.motor.active=false;
+    ST.motor.bus=null; ST.motor.mw=0;
+    ST.motor.totalSec=null;
+    ST.log(`${ts(ST.t)} Motor start ended`);
+  }
+}
+
+function stepOnce(){
+  const dt = computeDt();
+
+  // Consume events at this time
+  consumeEvents();
+
+  // Handle transient modifiers
+  if(ST.pv.cloudLeft>0){ ST.pv.cloudLeft-=dt; if(ST.pv.cloudLeft<=0){ ST.pv.cloudFactor=1.0; ST.log(`${ts(ST.t)} PV cloud cleared`);} }
+  if(ST.wind.gustLeft>0){ ST.wind.gustLeft-=dt; if(ST.wind.gustLeft<=0){ ST.wind.gustAdd=0; ST.log(`${ts(ST.t)} Wind gust ended`);} }
+
+  // Compute PV/Wind totals (then allocate to their bus)
+  const Ppv_av = pvAvail(ST.t, ST.pv.Pmax, clamp(+UI.pvCloud.value,0,1)) * ST.pv.cloudFactor;
+  const vwind = windSpeed(ST.t, ST.wind.mean + ST.wind.gustAdd, ST.wind.vvar);
+  const Pwind_av = windAvail(vwind, ST.wind.Pmax);
+
+  // Start with last-step voltage guesses to compute load (iterate once)
+  // Build injections per bus: +generation, -load
+  const buses = ST.topo.buses.map(b=>b.id);
+  const inj = buses.map(()=>({P:0,Q:0}));
+
+  // Place PV/Wind at their buses
+  for(const pv of ST.topo.pv){
+    const i = buses.indexOf(pv.bus);
+    inj[i].P += Ppv_av;
+  }
+  for(const w of ST.topo.wind){
+    const i = buses.indexOf(w.bus);
+    inj[i].P += Pwind_av;
+  }
+
+  // Diesel + BESS at SWY bus
+  const dieselBus = (ST.topo.diesel[0]?.bus)||"SWY";
+  const bessBus   = (ST.topo.bess[0]?.bus)||"SWY";
+  const iD = buses.indexOf(dieselBus);
+  const iB = buses.indexOf(bessBus);
+
+  // Load per bus uses last V estimate. We approximate V as 1.0 at first pass.
+  const Vguess = new Array(buses.length).fill(1.0);
+  let PloadTot=0, QloadTot=0;
+
+  for(let i=0;i<buses.length;i++){
+    const bus=buses[i];
+    const l = loadAtBusMWQ(bus, ST.f, Vguess[i]);
+    inj[i].P -= l.P;
+    inj[i].Q -= l.Q;
+    PloadTot += l.P;
+    QloadTot += l.Q;
+  }
+
+  // Diesel dispatch against residual excluding BESS
+  const P_re = Ppv_av + Pwind_av;
+  const residualPre = Math.max(0, PloadTot - P_re);
+  const fpu = (ST.f - ST.f0)/ST.f0;
+
+  // Diesel inertia proxy
+  const onlineCap = ST.dg.fleet.reduce((a,x)=>a+(x.online?x.cap:0),0);
+  ST.Sbase = Math.max(12, PloadTot, onlineCap);
+
+  const Pdg = dieselDispatch(ST, dt, fpu, residualPre);
+  inj[iD].P += Pdg;
+
+  // BESS reacts to net injection (pre)
+  const Pinj_pre = (Pdg + P_re) - PloadTot;
+  bessControl(ST, dt, fpu, Pinj_pre);
+  const Pb = ST.bess.P;
+  inj[iB].P += Pb;
+
+  // Grid-tie power (PCC) is whatever remains after local balance, but limited in weak grid
+  let Pgrid = 0;
+  if(ST.grid.pccClosed){
+    // compute net injection excluding grid
+    const Pinj_noGrid = (Pdg + Pb + P_re) - PloadTot;
+    // Grid absorbs opposite to make net zero at system level: Pgrid = -Pinj_noGrid
+    Pgrid = -Pinj_noGrid;
+
+    if(ST.grid.gridStrength==="weak"){
+      const scr = Math.max(1, +UI.scr.value);
+      // Tie limit grows with SCR (engineering proxy). Base 6 MW at SCR=5.
+      const PtieMax = 6 * (scr/5);
+      Pgrid = clamp(Pgrid, -PtieMax, +PtieMax);
+      // If limited, remaining imbalance goes into frequency dynamics (i.e., weak grid can't hold)
+    }
+  } else {
+    Pgrid = 0;
+  }
+  inj[buses.indexOf("PCC")].P += Pgrid;
+
+  // Solve voltages for this step
+  const sol = solveVoltages(ST.topo, inj, ST.grid);
+  ST.Vpcc = sol.V[buses.indexOf("PCC")] || 1.0;
+  ST.Vmin = sol.Vmin;
+
+  // Protection logic: trips the PCC (system trip) and UVLS
+  protectionStep(ST, dt);
+
+  // Frequency dynamics:
+  // - Strong grid closed: frequency pinned to f0
+  // - Weak grid closed: frequency follows a stiff but not infinite source (simple swing)
+  // - Island: swing with system inertia (diesel + VSG H)
+  const Hdiesel = onlineCap*ST.dg.HperMW;
+  const Hsys = Math.max(0.5, Hdiesel + ST.bess.H);
+
+  // Recompute actual effective imbalance that drives f:
+  let Pinj_eff = (Pdg + Pb + P_re + Pgrid) - PloadTot;
+
+  if(ST.grid.pccClosed && ST.grid.gridStrength==="strong"){
+    ST.dfdt = 0;
+    ST.f = ST.f0;
+  } else {
+    // Damping term (frequency-sensitive load already included, but keep system D)
+    const Pdamp = -ST.alpha*fpu*ST.Sbase;
+    const dpu = (Pinj_eff + Pdamp)/ST.Sbase;
+    let dfdt = ST.f0*(dpu - ST.D*fpu)/(2*Hsys);
+
+    // RoCoF clamp
+    dfdt = clamp(dfdt, -ST.rocMax, ST.rocMax);
+    ST.dfdt = dfdt;
+    ST.f += dfdt*dt;
+  }
+
+  // Energy accounting
+  // Curtailment approx when surplus exists and BESS can't absorb enough (proxy)
+  const surplus = Math.max(0, (Pdg + P_re) - PloadTot); // before BESS correction
+  const chargeCap = Math.max(0, -Pb);
+  const curt = Math.max(0, surplus - chargeCap);
+  ST.pv.curtailedMWh += (curt * (Ppv_av/(P_re+1e-9))) * dt/3600;
+  ST.wind.curtailedMWh += (curt * (Pwind_av/(P_re+1e-9))) * dt/3600;
+
+  // BESS SOC update (P>0 discharges E)
+  if(ST.bess.Emax>0) ST.bess.E = clamp(ST.bess.E - Pb*dt/3600, 0, ST.bess.Emax);
+
+  // Load energy
+  ST.E_load += PloadTot*dt/3600;
+  ST.E_RE   += (Ppv_av + Pwind_av)*dt/3600;
+
+  // Fuel
+  ST.fuelL += fuelLH(ST.dg.fleet)*dt/3600;
+  ST.fuelBaselineL += baselineFuelLitersPerHour(PloadTot, ST.dg.minPu)*dt/3600;
+
+  // Update motor decay
+  updateMotor(dt);
+
+  // Series push
+  const soc = (ST.bess.Emax>0)?100*(ST.bess.E/ST.bess.Emax):0;
+  ST.series.push({
+    t:ST.t, f:ST.f, Vmin:ST.Vmin, Vpcc:ST.Vpcc,
+    Pload:PloadTot, Ppv:Ppv_av, Pwind:Pwind_av, Pdg:Pdg, Pb:Pb, Pgrid:Pgrid,
+    soc
+  });
+
+  // store last totals for KPI quickly
+  ST.P = {load:PloadTot, pv:Ppv_av, wind:Pwind_av, dg:Pdg, bess:Pb, grid:Pgrid};
+
+  ST.t += dt;
+  updateBadges();
+  setPccUiState();
+}
+
+function protectionStep(st, dt){
+  const f=st.f, Vmin=st.Vmin;
+  const p = st.prot;
+
+  // If system tripped: keep PCC open for tripLeft then allow attempts
+  if(p.tripped){
+    p.tripLeft -= dt;
+    if(p.tripLeft<=0){
+      p.tripped=false;
+      st.log(`${ts(st.t)} Protection trip cleared (reclose allowed)`);
+      setPccUiState();
+    } else {
+      // keep PCC open
+      st.grid.pccClosed=false;
+      UI.pccClosed.value="false";
+      setPccUiState();
+      return;
     }
   }
 
-  renderAll();
-  raf = requestAnimationFrame(loop);
+  // UF/OF timers
+  if(f <= p.uf){ p.uf_t += dt; } else { p.uf_t = Math.max(0, p.uf_t-2*dt); }
+  if(f >= p.of){ p.of_t += dt; } else { p.of_t = Math.max(0, p.of_t-2*dt); }
+
+  // UV/OV timers
+  if(Vmin <= p.uv){ p.uv_t += dt; } else { p.uv_t = Math.max(0, p.uv_t-2*dt); }
+  if(Vmin >= p.ov){ p.ov_t += dt; } else { p.ov_t = Math.max(0, p.ov_t-2*dt); }
+
+  // UVLS (staged)
+  if(p.uv_t >= p.delay && st.uvls.shedStage < st.uvls.stages.length){
+    const add = st.uvls.stages[st.uvls.shedStage];
+    st.uvls.shedStage++;
+    st.uvls.shedFrac = clamp(st.uvls.shedFrac + add, 0, 0.80);
+    st.uvls.actions++;
+    p.uv_t = 0; // reset timer after a shed
+    st.log(`${ts(st.t)} UVLS stage ${st.uvls.shedStage} applied (+${Math.round(add*100)}% shed) total=${Math.round(st.uvls.shedFrac*100)}%`);
+  }
+
+  // Hard trip conditions (system protection) -> open PCC and latch
+  const hardTrip = (p.uf_t>=p.delay) || (p.of_t>=p.delay) || (p.ov_t>=p.delay && Vmin>p.ov);
+  if(hardTrip){
+    p.tripped=true;
+    p.tripLeft=p.reclose;
+    st.grid.pccClosed=false;
+    UI.pccClosed.value="false";
+    st.trips++;
+    st.log(`${ts(st.t)} PROTECTION TRIP -> PCC OPEN, reclose after ${p.reclose}s`);
+    // reset timers
+    p.uf_t=p.of_t=p.uv_t=p.ov_t=0;
+    setPccUiState();
+  }
 }
 
-/* -----------------------------
-  Controls
------------------------------ */
-$("mode").addEventListener("change", () => {
-  sim.mode = $("mode").value;
-});
+/* ==============================
+   12) Loop + KPI + Export
+============================== */
+function refreshKPI(){
+  if(!ST){ return; }
+  el("kpiFuel").textContent = fmt(ST.fuelL,"L");
+  el("kpiFuelBase").textContent = fmt(ST.fuelBaselineL,"L");
+  el("kpiFuelSave").textContent = fmt(Math.max(0,ST.fuelBaselineL - ST.fuelL),"L");
+  el("kpiCurt").textContent = fmt(ST.pv.curtailedMWh + ST.wind.curtailedMWh,"MWh");
+  el("kpiRE").textContent = fmt(ST.E_load>0?100*(ST.E_RE/ST.E_load):0,"%");
+  el("kpiN1").textContent = ST.n1_ok ? "OK" : "Not Met";
+  el("kpiTrips").textContent = String(ST.trips);
+  el("kpiUvls").textContent = `${ST.uvls.shedStage}/${ST.uvls.stages.length} (shed ${Math.round(ST.uvls.shedFrac*100)}%)`;
+  el("kpiVmin").textContent = fmt(ST.Vmin,"pu");
+}
 
-$("startBtn").addEventListener("click", () => {
-  if(!sim.running){
-    sim.running = true;
-    sim.paused = false;
-    $("pauseBtn").disabled = false;
-    lastWall = null;
-    raf = requestAnimationFrame(loop);
-  }else{
-    sim.paused = false;
+function setIdleUI(isIdle){
+  UI.pOverlay.style.display = isIdle ? "flex" : "none";
+  UI.fOverlay.style.display = isIdle ? "flex" : "none";
+  UI.live.classList.toggle("muted", isIdle);
+  if(isIdle){
+    UI.live.textContent="—";
+    resizeCanvas(UI.pPlot); resizeCanvas(UI.fPlot);
+    PCTX.clearRect(0,0,UI.pPlot.width,UI.pPlot.height);
+    FCTX.clearRect(0,0,UI.fPlot.width,UI.fPlot.height);
   }
-  renderAll();
-});
+}
 
-$("pauseBtn").addEventListener("click", () => {
-  sim.paused = !sim.paused;
-  $("pauseBtn").textContent = sim.paused ? "Resume" : "Pause";
-  renderAll();
-});
+function loop(){
+  if(!ST.running) return;
 
-$("resetBtn").addEventListener("click", () => {
-  sim.running = false;
-  sim.paused = false;
-  if(raf) cancelAnimationFrame(raf);
-  raf = null;
-  lastWall = null;
-
-  // clear data
-  for(const k of Object.keys(series)){
-    if(Array.isArray(series[k])) series[k].length = 0;
+  if(ST.t >= ST.T){
+    ST.running=false;
+    refreshKPI();
+    plotPower(ST); plotFreq(ST);
+    ST.log(`${ts(ST.t)} DONE`);
+    setPccUiState();
+    return;
   }
 
-  sim.t = 0;
+  stepOnce();
+  setIdleUI(false);
+  plotPower(ST);
+  plotFreq(ST);
+  refreshKPI();
 
-  // reset trip state
-  sim.trip.gridConnected = true;
-  sim.trip.openConfirmedAt = null;
-  setTripState("ARMED");
-  $("pauseBtn").textContent = "Pause";
-  $("pauseBtn").disabled = true;
+  requestAnimationFrame(loop);
+}
 
-  renderAll();
-});
-
-$("tripBtn").addEventListener("click", () => {
-  requestTrip();
-  renderAll();
-});
-
-$("exportBtn").addEventListener("click", () => {
-  // Demo CSV export
-  const header = ["t","pv","wind","load","diesel","bess","grid","freq","vmin","soc"].join(",");
-  const n = Math.min(series.pv.length, series.wind.length, series.load.length, series.diesel.length, series.bess.length, series.grid.length, series.f.length, series.vmin.length, series.soc.length);
-  const rows = [];
-  for(let i=0;i<n;i++){
+function toCSV(){
+  const rows=[ST.csvHeader.join(",")];
+  for(const d of ST.series){
     rows.push([
-      series.pv[i].x.toFixed(2),
-      series.pv[i].y.toFixed(4),
-      series.wind[i].y.toFixed(4),
-      series.load[i].y.toFixed(4),
-      series.diesel[i].y.toFixed(4),
-      series.bess[i].y.toFixed(4),
-      series.grid[i].y.toFixed(4),
-      series.f[i].y.toFixed(4),
-      series.vmin[i].y.toFixed(4),
-      series.soc[i].y.toFixed(2),
+      d.t.toFixed(3),
+      d.f.toFixed(5),
+      d.Vmin.toFixed(5),
+      d.Vpcc.toFixed(5),
+      d.Pload.toFixed(5),
+      d.Ppv.toFixed(5),
+      d.Pwind.toFixed(5),
+      d.Pdg.toFixed(5),
+      d.Pb.toFixed(5),
+      d.Pgrid.toFixed(5),
+      d.soc.toFixed(3),
+      (ST.grid.pccClosed?1:0),
+      ST.uvls.shedStage
     ].join(","));
   }
-  downloadText("microgrid_series.csv", header + "\n" + rows.join("\n"));
+  return rows.join("\n");
+}
+
+function downloadText(name, text, mime="text/plain"){
+  const blob=new Blob([text],{type:mime});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download=name;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function buildManifest(){
+  const cfg = {
+    simHours:+UI.simHours.value,
+    dtBase:+UI.dtBase.value,
+    dtEvent:+UI.dtEvent.value,
+    dtWinSec:+UI.dtWinSec.value,
+    f0:+UI.f0.value,
+    Dsys:+UI.Dsys.value,
+    alphaLoad:+UI.alphaLoad.value,
+
+    pccClosed:UI.pccClosed.value,
+    gridStrength:UI.gridStrength.value,
+    scr:+UI.scr.value,
+    syncDf:+UI.syncDf.value,
+    syncDv:+UI.syncDv.value,
+    syncHold:+UI.syncHold.value,
+
+    topoPreset:UI.topoPreset.value,
+    dg33n:+UI.dg33n.value,
+    dg12n:+UI.dg12n.value,
+    Rdg:+UI.Rdg.value,
+    dgMinPu:+UI.dgMinPu.value,
+    rampUp:+UI.rampUp.value,
+    rampDn:+UI.rampDn.value,
+    dgDelay:+UI.dgDelay.value,
+    dgHyst:+UI.dgHyst.value,
+    allowDieselOff:UI.allowDieselOff.value,
+
+    PbMax:+UI.PbMax.value,
+    EbMax:+UI.EbMax.value,
+    soc0:+UI.soc0.value,
+    Rvsg:+UI.Rvsg.value,
+    Hvsg:+UI.Hvsg.value,
+
+    PpvMax:+UI.PpvMax.value,
+    pvCloud:+UI.pvCloud.value,
+    PwindMax:+UI.PwindMax.value,
+    windMean:+UI.windMean.value,
+    windVar:+UI.windVar.value,
+
+    rocMax:+UI.rocMax.value,
+    uf:+UI.uf.value,
+    of:+UI.of.value,
+    uv:+UI.uv.value,
+    ov:+UI.ov.value,
+    protDelay:+UI.protDelay.value,
+    reclose:+UI.reclose.value,
+    uvls:UI.uvls.value,
+
+    eventScript: JSON.parse(UI.eventScript.value||"[]")
+  };
+
+  return {
+    run_id: ST.run_id,
+    generated_at: nowISO(),
+    engine: {
+      name: "single-file-mining-microgrid-sim",
+      model_level: "RMS-like (distribution DistFlow + simplified swing)",
+      notes: [
+        "PCC switch toggles Grid/Island",
+        "Weak grid uses SCR proxy for tie power limit and stiffness",
+        "Network voltages solved via spanning-tree sweep (approx for ring)",
+        "Protection includes UF/OF/UV/OV + UVLS staging + trip latch/reclose timer",
+        "Motor-start event models temporary load + reactive bump"
+      ]
+    },
+    config: cfg,
+    results: {
+      kpi: {
+        fuel_L: ST.fuelL,
+        fuelBaseline_L: ST.fuelBaselineL,
+        fuelSaved_L: Math.max(0,ST.fuelBaselineL-ST.fuelL),
+        renewableShare_pct: (ST.E_load>0?100*(ST.E_RE/ST.E_load):0),
+        curtailment_MWh: (ST.pv.curtailedMWh+ST.wind.curtailedMWh),
+        trips: ST.trips,
+        uvlsStagesApplied: ST.uvls.shedStage,
+        minVoltage_pu: ST.series.length?Math.min(...ST.series.map(x=>x.Vmin)):ST.Vmin
+      }
+    }
+  };
+}
+
+/* ==============================
+   13) UI wiring
+============================== */
+UI.startBtn.onclick=()=>{
+  if(!ST) initState();
+  if(!ST.started){
+    ST.started=true;
+    setIdleUI(false);
+  }
+  if(!ST.running){
+    ST.running=true;
+    requestAnimationFrame(loop);
+  }
+};
+UI.pauseBtn.onclick=()=>{ if(ST) ST.running=false; };
+UI.resetBtn.onclick=()=>{ initState(); setIdleUI(true); };
+
+UI.exportCsvBtn.onclick=()=>{
+  if(!ST || !ST.series.length){ alert("No data yet. Run first."); return; }
+  downloadText(`${ST.run_id}.csv`, toCSV(), "text/csv");
+};
+UI.exportManifestBtn.onclick=()=>{
+  if(!ST){ alert("Initialize first."); return; }
+  downloadText(`${ST.run_id}_manifest.json`, JSON.stringify(buildManifest(), null, 2), "application/json");
+};
+
+UI.tripGridBtn.onclick=()=>{
+  if(!ST) initState();
+  ST.grid.pccClosed=false;
+  UI.pccClosed.value="false";
+  ST.log(`${ts(ST.t)} Manual: PCC OPEN`);
+  setPccUiState();
+};
+UI.attemptRecloseBtn.onclick=()=>{
+  if(!ST) initState();
+  attemptReclose();
+};
+
+UI.pccClosed.addEventListener("change", ()=>{
+  if(!ST) return;
+  ST.grid.pccClosed = (UI.pccClosed.value==="true");
+  ST.log(`${ts(ST.t)} UI: PCC ${ST.grid.pccClosed?"CLOSED":"OPEN"}`);
+  setPccUiState();
+});
+UI.gridStrength.addEventListener("change", ()=>{
+  if(!ST) return;
+  ST.grid.gridStrength = UI.gridStrength.value;
+  ST.log(`${ts(ST.t)} UI: Grid strength = ${ST.grid.gridStrength}`);
+});
+UI.topoPreset.addEventListener("change", ()=>{
+  initState();
+  setPccUiState();
+});
+window.addEventListener("resize", ()=>{
+  if(!ST) return;
+  plotPower(ST); plotFreq(ST);
 });
 
-window.addEventListener("resize", () => renderAll());
+/* ==============================
+   14) Boot
+============================== */
+initEventScript();
+initState();
+setIdleUI(true);
 
-/* -----------------------------
-  Initial render
------------------------------ */
-renderAll();
+})();
 </script>
 </body>
 </html>
