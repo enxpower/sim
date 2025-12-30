@@ -1,4 +1,5 @@
 
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -96,6 +97,10 @@
         <span class="dot" id="protDot"></span>
         <span id="protStatusText">Protection: —</span>
       </div>
+      <div class="statusPill kv">
+        <span class="dot" id="syncDot"></span>
+        <span id="syncStatusText">Sync: —</span>
+      </div>
     </div>
 
     <label>Grid Connected (PCC Closed)</label>
@@ -124,13 +129,13 @@
     <label>Sync-check (reclose window)</label>
     <div class="grid2">
       <div>
-        <label class="muted">|Δf| max (Hz)</label><input id="syncDf" type="number" value="0.10" step="0.01" min="0.01">
+        <label class="muted">|Δf| max (Hz)</label><input id="syncDf" type="number" value="0.15" step="0.01" min="0.01">
       </div>
       <div>
-        <label class="muted">|ΔV| max (pu)</label><input id="syncDv" type="number" value="0.05" step="0.01" min="0.01">
+        <label class="muted">|ΔV| max (pu)</label><input id="syncDv" type="number" value="0.10" step="0.01" min="0.01">
       </div>
     </div>
-    <label class="muted">Hold time (s)</label><input id="syncHold" type="number" value="5" step="1" min="1">
+    <label class="muted">Hold time (s)</label><input id="syncHold" type="number" value="3" step="1" min="1">
   </div>
 
   <div class="card">
@@ -151,7 +156,24 @@
 </div>
 
 <div class="row">
+  
   <div class="card">
+    <b>Geography / Insolation</b>
+    <label>Preset</label>
+    <select id="geoPreset">
+      <option value="custom" selected>Custom</option>
+      <option value="arctic">Arctic (φ≈+70°N)</option>
+      <option value="desert">Desert (φ≈+25°N)</option>
+      <option value="tropical">Tropical Africa (φ≈+10°N)</option>
+      <option value="andes">Andes (φ≈+20°S)</option>
+    </select>
+    <label>Latitude φ (deg)</label><input id="latDeg" type="number" value="25" step="1" min="-80" max="80">
+    <label>Day of year (1-365)</label><input id="doy" type="number" value="172" step="1" min="1" max="365">
+    <label>PV soiling (0-1)</label><input id="pvSoil" type="number" value="0.90" step="0.05" min="0" max="1">
+    <label>PV day-shape (1-3)</label><input id="pvShape" type="number" value="1.60" step="0.10" min="1" max="3">
+  </div>
+
+<div class="card">
     <b>Fleet (VF diesel + VSG BESS + PV/Wind)</b>
 
     <div class="grid2">
@@ -292,6 +314,13 @@ const UI = {
   Dsys: el("Dsys"),
   alphaLoad: el("alphaLoad"),
 
+  geoPreset: el("geoPreset"),
+  latDeg: el("latDeg"),
+  doy: el("doy"),
+  pvSoil: el("pvSoil"),
+  pvShape: el("pvShape"),
+
+
   pccClosed: el("pccClosed"),
   gridStrength: el("gridStrength"),
   scr: el("scr"), scrV: el("scrV"),
@@ -333,7 +362,9 @@ const UI = {
   pccDot: el("pccDot"),
   pccStatusText: el("pccStatusText"),
   protDot: el("protDot"),
-  protStatusText: el("protStatusText")
+  protStatusText: el("protStatusText"),
+  syncDot: el("syncDot"),
+  syncStatusText: el("syncStatusText")
 };
 
 UI.scr.addEventListener("input", ()=> UI.scrV.textContent = UI.scr.value);
@@ -473,35 +504,78 @@ function baselineFuelLitersPerHour(Pload, minPu){
 }
 
 /* PV/Wind availability (simple but “mine-realistic enough”) */
-function pvAvail(t, Pmax, cloud){
+
+/* ────────── Sun geometry (ported from legacy) ────────── */
+function declination(doy){
+  return 23.44*Math.PI/180*Math.sin(2*Math.PI*(284+doy)/365);
+}
+function sunTimes(latRad, doy){
+  const δ=declination(doy), φ=latRad;
+  const x=-Math.tan(φ)*Math.tan(δ);
+  if(x<=-1) return {day:24, rise:0,  set:24};  // polar day
+  if(x>= 1) return {day:0,  rise:12, set:12};  // polar night
+  const ω=Math.acos(x);
+  const day=24*ω/Math.PI;
+  const rise=12-day/2, set=12+day/2;
+  return {day, rise, set};
+}
+
+/* PV availability (geo-aware, still lightweight & reproducible) */
+function pvAvail(t, Pmax, cloud, latDeg, doy, shape, soil){
   if(Pmax<=0) return 0;
+  const latRad = (latDeg||0) * Math.PI/180;
+  const st = sunTimes(latRad, (doy||172));
+  const sr = st.rise*3600, ss = st.set*3600;
+
   const day = 24*3600;
   const local = (t % day);
-  // Simple bell curve from 6:00 to 18:00
-  const sr = 6*3600, ss = 18*3600;
+
   if(local<sr || local>ss) return 0;
-  const u = (local - sr) / (ss - sr);
-  const shape = 1.6;
-  const bell = Math.pow(Math.sin(Math.PI*u), shape);
-  const cloudMod = 1-cloud + cloud*(0.55 + 0.45*Math.sin(0.03*t)*0.6 + 0.4*Math.sin(0.011*t+1.7));
+
+  const u = (local - sr) / Math.max(1,(ss - sr));
+  const sh = clamp((shape==null?1.6:+shape), 1.0, 3.0);
+  const bell = Math.pow(Math.sin(Math.PI*u), sh);
+
+  const cl = clamp((cloud==null?0:+cloud), 0, 1);
+  const cloudMod = 1-cl + cl*(0.55 + 0.45*Math.sin(0.03*t)*0.6 + 0.4*Math.sin(0.011*t+1.7));
   const temp = 1-0.06*Math.exp(-Math.pow((u-0.5)/0.20,2));
-  return Math.max(0, Pmax*bell*cloudMod*temp);
+  const so = clamp((soil==null?1.0:+soil), 0, 1);
+
+  return Math.max(0, Pmax*so*bell*cloudMod*temp);
 }
+
 function windSpeed(t, mean, vvar){
+  // Smooth background variability + reproducible gust texture
   const base = mean*(1+0.18*Math.sin(0.008*t)+0.12*Math.sin(0.021*t+1.1));
   const gust = (rng()-0.5)*vvar*1.6;
   return Math.max(0, base*(1+gust));
 }
-function windAvail(v, Pmax){
+
+// State-aware wind availability: includes cut-out and reset timer
+function windAvailState(st, v, dt){
+  const Pmax = st.wind.Pmax;
   if(Pmax<=0) return 0;
+
+  // If cut-out latch is active, count down then stay at 0
+  if(st.wind.stopReset>0){
+    st.wind.stopReset = Math.max(0, st.wind.stopReset - dt);
+    return 0;
+  }
+
   if(v<3) return 0;
   if(v<12){
     const pu=(v-3)/(12-3);
     return Pmax*pu*pu;
   }
   if(v<=25) return Pmax;
+
+  // Cut-out event
+  st.wind.stopReset = st.wind.stopResetDur;
+  st.wind.trips = (st.wind.trips||0) + 1;
+  st.log(`${ts(st.t)} WIND CUT-OUT (v=${v.toFixed(1)} m/s) → hold ${st.wind.stopResetDur}s`);
   return 0;
 }
+
 
 /* ==============================
    4) Network solver (RMS-ish)
@@ -639,6 +713,19 @@ function buildDieselFleet(n33,n12, allowOff){
 }
 
 function dieselDispatch(st, dt, fpu, residualMW){
+
+  // Sync-assist: if a reclose is armed while PCC is OPEN, keep at least one diesel online.
+  // Rationale: BESS alone may not have enough headroom to pull island frequency to grid and meet sync-check.
+  const syncAssist = (!st.grid.pccClosed && st.grid.recloseArmed);
+  if(syncAssist){
+    st.freezeReduce = true; // inhibit stopOne() while syncing
+    const minSyncCap = 3.3; // MW (one "DG3.3")
+    let onlineCapNow = st.dg.fleet.reduce((a,x)=>a+(x.online?x.cap:0),0);
+    if(onlineCapNow < minSyncCap){
+      // Prefer bringing a 3.3MW unit online; fall back to 1.25MW if needed
+      if(!startOne("DG3.3")) startOne("DG1.25");
+    }
+  }
   const u=st.dg.fleet;
   let onlineCap=u.reduce((a,x)=>a+(x.online?x.cap:0),0);
   const largest=Math.max(0,...u.filter(x=>x.online).map(x=>x.cap));
@@ -646,7 +733,7 @@ function dieselDispatch(st, dt, fpu, residualMW){
   st.n1_ok=((onlineCap-largest)>=need*0.95);
 
   // capacity management
-  const desiredCap=(need>0)?need/0.75:(st.dg.allowOff?0:3.3);
+  const desiredCap=(need>0)?need/0.75:((st.dg.allowOff && !syncAssist)?0:3.3);
   const upH=st.dg.hyster, dnH=st.dg.hyster*1.3;
   if(onlineCap<desiredCap-upH){ if(!startOne("DG3.3")) startOne("DG1.25"); }
   else if(onlineCap-desiredCap>dnH && !st.freezeReduce && st.bess.E/st.bess.Emax>0.30){ stopOne(); }
@@ -698,7 +785,17 @@ function bessControl(st, dt, fpu, Pinj_pre){
   const err=(st.bess.socTarget - soc);
   const P_energy=clamp(err*Pmax*0.25,-0.6*Pmax,0.6*Pmax);
 
-  let Pcmd=0.60*P_corr + 0.30*P_droop + 0.10*P_energy;
+  // Sync bias (only when PCC is open but a reclose attempt is armed):
+  // Drive island frequency toward grid (assume grid at f0). This is a deliberate EMS behavior to enable sync-check.
+  let P_sync = 0;
+  if(!st.grid.pccClosed && st.grid.recloseArmed){
+    const dfMax = Math.max(0.01, +UI.syncDf.value||0.1); // Hz
+    const ferr = (st.f - st.f0); // Hz
+    // Normalize to threshold; apply up to 50% of Pmax
+    P_sync = clamp(-0.5*Pmax*(ferr/dfMax), -0.5*Pmax, 0.5*Pmax);
+  }
+
+  let Pcmd=0.55*P_corr + 0.25*P_droop + 0.10*P_energy + 0.10*P_sync;
 
   // soft soc walls
   const soft=0.08;
@@ -770,21 +867,36 @@ function ensureLegend(){
   `;
 }
 
+
 function drawYAxisTicks(ctx, w, h, yFn, vMin, vMax, unit, color="#6b7280"){
+  // Draw ONLY numeric ticks (no repeated unit, no extra axis label) to avoid clutter/ghosting.
   const DPR=window.devicePixelRatio||1;
+  ctx.save();
   ctx.fillStyle=color;
   ctx.font=`${10*DPR}px sans-serif`;
+
   const ticks=4;
   for(let k=0;k<=ticks;k++){
     const v = vMax - (k/ticks)*(vMax-vMin);
     const y = yFn(v);
-    ctx.fillText(`${v.toFixed(2)} ${unit}`, 6, y+3);
+    const txt = (Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2));
+    ctx.fillText(txt, 6, y+3);
   }
-  // axis label
-  ctx.fillStyle="#374151";
-  ctx.font=`${11*DPR}px sans-serif`;
-  ctx.fillText(unit, 10, 14);
+  ctx.restore();
 }
+function drawYAxisTicksList(ctx, w, h, yFn, values, fmtFn, color="#6b7280"){
+  const DPR=window.devicePixelRatio||1;
+  ctx.save();
+  ctx.fillStyle=color;
+  ctx.font=`${10*DPR}px sans-serif`;
+  for(const v of values){
+    const y=yFn(v);
+    const txt = fmtFn ? fmtFn(v) : String(v);
+    ctx.fillText(txt, 6, y+3);
+  }
+  ctx.restore();
+}
+
 
 function plotPower(st){
   if(!st.started) return;
@@ -819,6 +931,11 @@ function plotPower(st){
 
   drawGrid(PCTX, w, h);
   drawYAxisTicks(PCTX, w, h, y, pmin, pmax, "MW");
+  // Small axis title
+  PCTX.fillStyle="#6b7280";
+  PCTX.font=`${10*(window.devicePixelRatio||1)}px sans-serif`;
+  PCTX.fillText("MW", 6, 14);
+
 
   // zero line
   const y0 = y(0);
@@ -845,7 +962,7 @@ function plotPower(st){
   for(let k=0;k<=ticks;k++){
     const t = tStart + (k/ticks)*WINDOW_SEC;
     const x = 40 + (k/ticks)*(w - 60);
-    PCTX.fillText(`${(t/3600).toFixed(2)} h`, x-18, h-6);
+    PCTX.fillText(`${(t/3600).toFixed(2)}h`, x-18, h-6);
   }
 
   PCTX.fillStyle="#6b7280";
@@ -893,16 +1010,33 @@ function plotFreq(st){
   const yS = v => (1-(v-0)/(100||1))*(h-36)+18;
 
   drawGrid(FCTX, w, h);
-  drawYAxisTicks(FCTX, w, h, yF, fmin, fmax, "Hz");
+  // Y ticks: force-show f0 and symmetric anchors to avoid missing 60Hz label
+  const fTicks = [fmax, (f0+0.5), f0, (f0-0.5), fmin].filter((v,i,a)=>v>=fmin-1e-9 && v<=fmax+1e-9)
+    .filter((v,i,a)=>a.indexOf(v)===i);
+  drawYAxisTicksList(FCTX, w, h, yF, fTicks, (v)=>v.toFixed(2));
+  // Small axis title
+  FCTX.fillStyle="#6b7280";
+  FCTX.font=`${10*(window.devicePixelRatio||1)}px sans-serif`;
+  FCTX.fillText("Hz", 6, 14);
 
-  // f0 line
+
+  // f0 reference line (nominal frequency)
+  // Ensures user always sees a 60.00Hz reference line.
+
   const y60 = yF(f0);
   FCTX.beginPath();
   FCTX.moveTo(40,y60);
   FCTX.lineTo(w-12,y60);
+  FCTX.setLineDash([5,5]);
   FCTX.strokeStyle="#9ca3af";
   FCTX.lineWidth=1;
   FCTX.stroke();
+  FCTX.setLineDash([]);
+  // label on the right end
+  FCTX.fillStyle="#9ca3af";
+  FCTX.font=`${10*(window.devicePixelRatio||1)}px sans-serif`;
+  FCTX.fillText(`${f0.toFixed(2)} Hz`, w-56, y60-4);
+
 
   drawLine(FCTX, xs, fVals.map(yF), COLORS.freq, false);
   drawLine(FCTX, xs, vVals.map(yV), COLORS.vmin, true);
@@ -922,7 +1056,7 @@ function plotFreq(st){
   for(let k=0;k<=ticks;k++){
     const t = tStart + (k/ticks)*WINDOW_SEC;
     const x = 40 + (k/ticks)*(w-60);
-    FCTX.fillText(`${(t/3600).toFixed(2)} h`, x-18, h-6);
+    FCTX.fillText(`${(t/3600).toFixed(2)}h`, x-18, h-6);
   }
 
   FCTX.fillStyle="#6b7280";
@@ -952,6 +1086,13 @@ function initEventScript(){
 }
 
 function setPccUiState(){
+  if(!ST) return;
+  // prevent log/DOM spam: only update when the visible state changes
+  const next = ST.grid.pccClosed ? "CLOSED" : "OPEN";
+  if(ST._uiPccLast !== next){
+    ST._uiPccLast = next;
+  }
+
   if(!ST){
     UI.pccDot.className = "dot";
     UI.pccStatusText.textContent = "PCC: —";
@@ -965,7 +1106,7 @@ function setPccUiState(){
 
   // Button enable logic (persistently consistent)
   UI.tripGridBtn.disabled = !closed;
-  UI.attemptRecloseBtn.disabled = closed;
+  UI.attemptRecloseBtn.disabled = closed || (ST && ST.prot && ST.prot.tripped);
 
   // Protection status
   const p = ST.prot;
@@ -975,6 +1116,25 @@ function setPccUiState(){
   } else {
     UI.protDot.className = "dot ok";
     UI.protStatusText.textContent = "Protection: ARMED";
+  }
+
+  // Sync status (for reclose readiness)
+  if(closed){
+    UI.syncDot.className = "dot ok";
+    UI.syncStatusText.textContent = "Sync: ON-GRID";
+  } else if(ST.grid.recloseArmed){
+    const df = Math.abs(ST.f - ST.f0);
+    const dv = Math.abs(ST.Vpcc - 1.0);
+    const dfMax = +UI.syncDf.value;
+    const dvMax = +UI.syncDv.value;
+    const ok = (df<=dfMax && dv<=dvMax) && (!ST.prot.tripped);
+    UI.syncDot.className = "dot " + (ok ? "ok" : "bad");
+    UI.syncStatusText.textContent = ok
+      ? `Sync: READY (|Δf|=${df.toFixed(3)}Hz, |ΔV|=${dv.toFixed(3)}pu)`
+      : `Sync: WAIT (|Δf|=${df.toFixed(3)}Hz, |ΔV|=${dv.toFixed(3)}pu)`;
+  } else {
+    UI.syncDot.className = "dot";
+    UI.syncStatusText.textContent = "Sync: —";
   }
 }
 
@@ -1018,12 +1178,16 @@ function initState(){
       scr: +UI.scr.value,
       Vgrid: 1.0,
       syncHoldReq:+UI.syncHold.value,
-      syncHold:0
+      syncHold:0,
+      recloseArmed:false
     },
 
     // DER params
-    pv:{Pmax:+UI.PpvMax.value, cloud:+UI.pvCloud.value, cloudFactor:1.0, cloudLeft:0, curtailedMWh:0, trips:0},
-    wind:{Pmax:+UI.PwindMax.value, mean:+UI.windMean.value, vvar:+UI.windVar.value, gustAdd:0, gustLeft:0, curtailedMWh:0, trips:0},
+    geo:{preset:UI.geoPreset.value, latDeg:+UI.latDeg.value, doy:+UI.doy.value},
+
+    // DER params
+    pv:{Pmax:+UI.PpvMax.value, cloud:+UI.pvCloud.value, soil:+UI.pvSoil.value, shape:+UI.pvShape.value, cloudFactor:1.0, cloudLeft:0, curtailedMWh:0, trips:0},
+    wind:{Pmax:+UI.PwindMax.value, mean:+UI.windMean.value, vvar:+UI.windVar.value, gustAdd:0, gustLeft:0, stopReset:0, stopResetDur:120, curtailedMWh:0, trips:0},
 
     dg:{
       fleet: buildDieselFleet(+UI.dg33n.value, +UI.dg12n.value, allowOff),
@@ -1182,30 +1346,68 @@ function consumeEvents(){
 /* ==============================
    10) PCC reclose (sync-check)
 ============================== */
-function attemptReclose(){
+function attemptReclose(armOnly=false){
   if(!ST) return;
-  if(ST.grid.pccClosed){ ST.log(`${ts(ST.t)} Reclose: already closed`); setPccUiState(); return; }
+
+  if(ST.prot.tripped){
+    ST.log(`${ts(ST.t)} Reclose blocked: protection TRIPPED (${Math.max(0,ST.prot.tripLeft).toFixed(0)}s)`);
+    setPccUiState();
+    return;
+  }
+  if(ST.grid.pccClosed){
+    ST.grid.recloseArmed=false;
+    ST.log(`${ts(ST.t)} Reclose: already closed`);
+    setPccUiState();
+    return;
+  }
+
+  // Arm a continuous attempt: stepOnce will keep evaluating sync-check and hold timer.
+  ST.grid.recloseArmed = true;
+  if(armOnly){
+    ST.log(`${ts(ST.t)} Reclose armed (waiting for sync-check window)`);
+    setPccUiState();
+    return;
+  }
+
+  // If user clicked the button, also execute one immediate evaluation.
+  tryRecloseStep(0);
+}
+
+function tryRecloseStep(dt){
+  if(!ST || !ST.grid.recloseArmed) return;
+  if(ST.grid.pccClosed){ ST.grid.recloseArmed=false; return; }
+  if(ST.prot.tripped){
+    ST.grid.recloseArmed=false;
+    ST.grid.syncHold=0;
+    ST.log(`${ts(ST.t)} Reclose canceled: protection TRIPPED`);
+    setPccUiState();
+    return;
+  }
 
   const ok = syncCheck(ST);
   if(ok){
-    ST.grid.syncHold += ST.dtBase;
+    ST.grid.syncHold += dt;
     if(ST.grid.syncHold >= ST.grid.syncHoldReq){
       ST.grid.pccClosed=true;
       UI.pccClosed.value="true";
       ST.log(`${ts(ST.t)} PCC CLOSED (sync OK held ${ST.grid.syncHoldReq}s)`);
       ST.grid.syncHold=0;
+      ST.grid.recloseArmed=false;
       setPccUiState();
     } else {
-      ST.log(`${ts(ST.t)} Sync OK, holding... ${ST.grid.syncHold.toFixed(1)}/${ST.grid.syncHoldReq}s`);
+      // keep the log lightweight: only on coarse intervals
+      if(Math.abs((ST.t % 1.0) - 0) < 1e-9){
+        ST.log(`${ts(ST.t)} Sync OK, holding... ${ST.grid.syncHold.toFixed(1)}/${ST.grid.syncHoldReq}s`);
+      }
       setPccUiState();
     }
   } else {
+    // reset hold timer; remain armed
+    if(ST.grid.syncHold>0) ST.log(`${ts(ST.t)} Sync lost, hold reset`);
     ST.grid.syncHold=0;
-    ST.log(`${ts(ST.t)} Reclose blocked: sync-check failed (|Δf| or |ΔV| too large)`);
     setPccUiState();
   }
 }
-
 /* ==============================
    11) Main step
 ============================== */
@@ -1290,14 +1492,17 @@ function stepOnce(){
   // Consume events at this time
   consumeEvents();
 
+  // If a reclose attempt is armed, evaluate sync-check continuously
+  tryRecloseStep(dt);
+
   // Handle transient modifiers
   if(ST.pv.cloudLeft>0){ ST.pv.cloudLeft-=dt; if(ST.pv.cloudLeft<=0){ ST.pv.cloudFactor=1.0; ST.log(`${ts(ST.t)} PV cloud cleared`);} }
   if(ST.wind.gustLeft>0){ ST.wind.gustLeft-=dt; if(ST.wind.gustLeft<=0){ ST.wind.gustAdd=0; ST.log(`${ts(ST.t)} Wind gust ended`);} }
 
   // Compute PV/Wind totals (then allocate to their bus)
-  const Ppv_av = pvAvail(ST.t, ST.pv.Pmax, clamp(+UI.pvCloud.value,0,1)) * ST.pv.cloudFactor;
+  const Ppv_av = pvAvail(ST.t, ST.pv.Pmax, clamp(+UI.pvCloud.value,0,1), ST.geo.latDeg, ST.geo.doy, ST.pv.shape, ST.pv.soil) * ST.pv.cloudFactor;
   const vwind = windSpeed(ST.t, ST.wind.mean + ST.wind.gustAdd, ST.wind.vvar);
-  const Pwind_av = windAvail(vwind, ST.wind.Pmax);
+  const Pwind_av = windAvailState(ST, vwind, dt);
 
   // Start with last-step voltage guesses to compute load (iterate once)
   // Build injections per bus: +generation, -load
@@ -1672,6 +1877,40 @@ UI.startBtn.onclick=()=>{
   }
 };
 UI.pauseBtn.onclick=()=>{ if(ST) ST.running=false; };
+
+// Geography preset wiring (minimal, safe)
+const applyGeoPreset = (name)=>{
+  const preset = (name||"custom").toLowerCase();
+  const map = {
+    arctic:  {latDeg:70,  doy:172},
+    desert:  {latDeg:25,  doy:172},
+    tropical:{latDeg:10,  doy:172},
+    andes:   {latDeg:-20, doy:172},
+    custom:  null
+  };
+  const v = map[preset] || null;
+  if(v){
+    UI.latDeg.value = v.latDeg;
+    UI.doy.value = v.doy;
+
+    // Linked climate defaults
+    if(UI.pvCloud) UI.pvCloud.value = v.cloud;
+    if(UI.pvSoil)  UI.pvSoil.value  = v.soil;
+    if(UI.windMean)UI.windMean.value= v.windMean;
+    if(UI.windVar) UI.windVar.value = v.windVar;
+  }
+};
+UI.geoPreset.onchange=()=>{
+  applyGeoPreset(UI.geoPreset.value);
+  initState();
+};
+for(const k of ["latDeg","doy","pvSoil","pvShape"]){
+  UI[k].onchange=()=>{
+    if(UI.geoPreset.value!=="custom") UI.geoPreset.value="custom";
+    initState();
+  };
+}
+
 UI.resetBtn.onclick=()=>{ initState(); setIdleUI(true); };
 
 UI.exportCsvBtn.onclick=()=>{
@@ -1686,27 +1925,46 @@ UI.exportManifestBtn.onclick=()=>{
 UI.tripGridBtn.onclick=()=>{
   if(!ST) initState();
   ST.grid.pccClosed=false;
+  ST.grid.recloseArmed=false;
+  ST.grid.syncHold=0;
   UI.pccClosed.value="false";
   ST.log(`${ts(ST.t)} Manual: PCC OPEN`);
   setPccUiState();
 };
 UI.attemptRecloseBtn.onclick=()=>{
   if(!ST) initState();
-  attemptReclose();
+  attemptReclose(false); // arm + evaluate once
 };
 
 UI.pccClosed.addEventListener("change", ()=>{
-  if(!ST) return;
-  ST.grid.pccClosed = (UI.pccClosed.value==="true");
-  ST.log(`${ts(ST.t)} UI: PCC ${ST.grid.pccClosed?"CLOSED":"OPEN"}`);
+  if(!ST) initState();
+  const want = (UI.pccClosed.value==="true");
+
+  if(!want){
+    // Force island: open PCC immediately and cancel any reclose attempt
+    const was = ST.grid.pccClosed;
+    ST.grid.pccClosed=false;
+    ST.grid.recloseArmed=false;
+    ST.grid.syncHold=0;
+    ST.log(`${ts(ST.t)} UI: PCC OPEN (forced island)`);
+    setPccUiState();
+    return;
+  }
+
+  // Request grid-connected: do NOT slam close. Arm a sync-checked reclose.
+  ST.grid.pccClosed=false;         // remain open until sync-check succeeds
+  ST.grid.recloseArmed=true;
+  ST.grid.syncHold=0;
+  ST.log(`${ts(ST.t)} UI: PCC CLOSE requested (sync-check armed)`);
   setPccUiState();
 });
+
 UI.gridStrength.addEventListener("change", ()=>{
   if(!ST) return;
   ST.grid.gridStrength = UI.gridStrength.value;
   ST.log(`${ts(ST.t)} UI: Grid strength = ${ST.grid.gridStrength}`);
 });
-UI.topoPreset.addEventListener("change", ()=>{
+UI.UI.topoPreset.addEventListener("change", ()=>{
   initState();
   setPccUiState();
 });
