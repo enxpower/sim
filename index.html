@@ -1,10 +1,11 @@
 
 
-<!doctype html>
+<!DOCTYPE html>
+
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
 <title>Mining Microgrid Simulator · Single-File · Grid/Island + Multi-Bus + Protection</title>
 <style>
   :root{--fg:#111;--muted:#666;--box:#d1d5db;--bg:#fff;--btnbg:#fff;--btnbd:#111;--btnhover:#0a0a0a10}
@@ -57,229 +58,223 @@
 </head>
 <body>
 <div class="topbar">
-  <h1>Mining Microgrid Simulator — Multi-Bus RMS · Grid/Island via PCC Switch · Single File</h1>
-  <div class="pill kv"><span id="modeBadge">MODE: —</span><span class="muted">·</span><span id="tBadge">t=—</span></div>
+<h1>Mining Microgrid Simulator — Multi-Bus RMS · Grid/Island via PCC Switch · Single File</h1>
+<div class="pill kv"><span id="modeBadge">MODE: —</span><span class="muted">·</span><span id="tBadge">t=—</span></div>
+</div>
+<div class="row">
+<div class="card">
+<b>Run</b>
+<label>Simulation length (hours)</label><input id="simHours" min="1" step="1" type="number" value="24"/>
+<label>Base time step dt (s)</label><input id="dtBase" min="0.05" step="0.1" type="number" value="0.5"/>
+<label>Event window dt (s) (± window)</label>
+<div class="grid2">
+<input id="dtEvent" min="0.05" step="0.05" type="number" value="0.1"/>
+<input id="dtWinSec" min="5" step="5" type="number" value="30"/>
+</div>
+<label>Nominal frequency f0 (Hz)</label><input id="f0" max="65" min="40" step="1" type="number" value="60"/>
+<label>System damping D (pu)</label><input id="Dsys" step="0.1" type="number" value="2.2"/>
+<label>Load freq-sensitivity α (%/Hz)</label><input id="alphaLoad" step="0.1" type="number" value="2.0"/>
+
+<label style="margin-top:6px">Stochastic load variation</label>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end">
+  <label style="display:flex;gap:8px;align-items:center;margin:0">
+    <input id="loadVarOn" type="checkbox" checked style="width:auto;margin:0"/>
+    <span>Enable</span>
+  </label>
+  <div></div>
+  <div>
+    <label style="margin:0">Load variability (1σ, %)</label>
+    <input id="loadVarPct" min="0" max="20" step="0.5" type="number" value="3"/>
+  </div>
+  <div>
+    <label style="margin:0">Time constant τ (s)</label>
+    <input id="loadVarTau" min="1" max="300" step="1" type="number" value="20"/>
+  </div>
 </div>
 
-<div class="row">
-  <div class="card">
-    <b>Run</b>
-    <label>Simulation length (hours)</label><input id="simHours" type="number" value="24" step="1" min="1">
-    <label>Base time step dt (s)</label><input id="dtBase" type="number" value="0.5" step="0.1" min="0.05">
-    <label>Event window dt (s) (± window)</label>
-    <div class="grid2">
-      <input id="dtEvent" type="number" value="0.1" step="0.05" min="0.05">
-      <input id="dtWinSec" type="number" value="30" step="5" min="5">
-    </div>
-    <label>Nominal frequency f0 (Hz)</label><input id="f0" type="number" value="60" step="1" min="40" max="65">
-    <label>System damping D (pu)</label><input id="Dsys" type="number" value="2.2" step="0.1">
-    <label>Load freq-sensitivity α (%/Hz)</label><input id="alphaLoad" type="number" value="2.0" step="0.1">
-    <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
-      <button class="btn" id="startBtn"><span>▶</span><span>Start</span></button>
-      <button class="btn secondary" id="pauseBtn"><span>⏸</span><span>Pause</span></button>
-      <button class="btn secondary" id="resetBtn"><span>↺</span><span>Reset</span></button>
-    </div>
-    <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
-      <button class="btn secondary" id="exportCsvBtn">Export CSV</button>
-      <button class="btn secondary" id="exportManifestBtn">Export Manifest</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <b>Grid / PCC (the switch that decides “with grid / without grid”)</b>
-
-    <div class="statusRow">
-      <div class="statusPill kv">
-        <span class="dot" id="pccDot"></span>
-        <span id="pccStatusText">PCC: —</span>
-      </div>
-      <div class="statusPill kv">
-        <span class="dot" id="protDot"></span>
-        <span id="protStatusText">Protection: —</span>
-      </div>
-      <div class="statusPill kv">
-        <span class="dot" id="syncDot"></span>
-        <span id="syncStatusText">Sync: —</span>
-      </div>
-    </div>
-
-    <label>Grid Connected (PCC Closed)</label>
-    <select id="pccClosed">
-      <option value="true" selected>Yes (Grid-Connected)</option>
-      <option value="false">No (Islanded)</option>
-    </select>
-
-    <label>Grid Strength</label>
-    <select id="gridStrength">
-      <option value="strong" selected>Strong (Infinite Bus)</option>
-      <option value="weak">Weak (Thevenin Equivalent)</option>
-    </select>
-
-    <label>Weak-grid SCR (higher = stronger)</label>
-    <input id="scr" type="range" min="1" max="20" step="1" value="5">
-    <div class="kv muted">SCR=<span id="scrV">5</span> · Tie limit and PCC voltage stiffness scale with SCR</div>
-
-    <label>Grid trip / reconnect buttons (events)</label>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
-      <!-- Swapped order: Attempt Reclose first, Trip Grid second -->
-      <button class="btn safe" id="attemptRecloseBtn"><span>⟲</span><span>Attempt Reclose</span></button>
-      <button class="btn danger" id="tripGridBtn"><span>⏚</span><span>Trip Grid (Open PCC)</span></button>
-    </div>
-
-    <label>Sync-check (reclose window)</label>
-    <div class="grid2">
-      <div>
-        <label class="muted">|Δf| max (Hz)</label><input id="syncDf" type="number" value="0.15" step="0.01" min="0.01">
-      </div>
-      <div>
-        <label class="muted">|ΔV| max (pu)</label><input id="syncDv" type="number" value="0.10" step="0.01" min="0.01">
-      </div>
-    </div>
-    <label class="muted">Hold time (s)</label><input id="syncHold" type="number" value="3" step="1" min="1">
-  </div>
-
-  <div class="card">
-    <b>Topology preset (still single-file, just swaps CONFIG)</b>
-    <label>Network preset</label>
-    <select id="topoPreset">
-      <option value="mine_radial" selected>Mining Radial (11 buses)</option>
-      <option value="mine_ring">Mining Ring (11 buses, looped)</option>
-      <option value="tiny">Tiny Demo (4 buses)</option>
-    </select>
-
-    <label>Event script (JSON array). Each event: {t_s, type, ...}</label>
-    <textarea id="eventScript"></textarea>
-    <div class="muted" style="margin-top:6px">
+<div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+<button class="btn" id="startBtn"><span>▶</span><span>Start</span></button>
+<button class="btn secondary" id="pauseBtn"><span>⏸</span><span>Pause</span></button>
+<button class="btn secondary" id="resetBtn"><span>↺</span><span>Reset</span></button>
+</div>
+<div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+<button class="btn secondary" id="exportCsvBtn">Export CSV</button>
+<button class="btn secondary" id="exportManifestBtn">Export Manifest</button>
+</div>
+</div>
+<div class="card">
+<b>Grid / PCC (the switch that decides “with grid / without grid”)</b>
+<div class="statusRow">
+<div class="statusPill kv">
+<span class="dot" id="pccDot"></span>
+<span id="pccStatusText">PCC: —</span>
+</div>
+<div class="statusPill kv">
+<span class="dot" id="protDot"></span>
+<span id="protStatusText">Protection: —</span>
+</div>
+<div class="statusPill kv">
+<span class="dot" id="syncDot"></span>
+<span id="syncStatusText">Sync: —</span>
+</div>
+</div>
+<label>Grid Connected (PCC Closed)</label>
+<select id="pccClosed">
+<option selected="" value="true">Yes (Grid-Connected)</option>
+<option value="false">No (Islanded)</option>
+</select>
+<label>Grid Strength</label>
+<select id="gridStrength">
+<option selected="" value="strong">Strong (Infinite Bus)</option>
+<option value="weak">Weak (Thevenin Equivalent)</option>
+</select>
+<label>Weak-grid SCR (higher = stronger)</label>
+<input id="scr" max="20" min="1" step="1" type="range" value="5"/>
+<div class="kv muted">SCR=<span id="scrV">5</span> · Tie limit and PCC voltage stiffness scale with SCR</div>
+<label>Grid trip / reconnect buttons (events)</label>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+<!-- Swapped order: Attempt Reclose first, Trip Grid second -->
+<button class="btn safe" id="attemptRecloseBtn"><span>⟲</span><span>Attempt Reclose</span></button>
+<button class="btn danger" id="tripGridBtn"><span>⏚</span><span>Trip Grid (Open PCC)</span></button>
+</div>
+<label>Sync-check (reclose window)</label>
+<div class="grid2">
+<div>
+<label class="muted">|Δf| max (Hz)</label><input id="syncDf" min="0.01" step="0.01" type="number" value="0.15"/>
+</div>
+<div>
+<label class="muted">|ΔV| max (pu)</label><input id="syncDv" min="0.01" step="0.01" type="number" value="0.10"/>
+</div>
+</div>
+<label class="muted">Hold time (s)</label><input id="syncHold" min="1" step="1" type="number" value="3"/>
+</div>
+<div class="card">
+<b>Topology preset (still single-file, just swaps CONFIG)</b>
+<label>Network preset</label>
+<select id="topoPreset">
+<option selected="" value="mine_radial">Mining Radial (11 buses)</option>
+<option value="mine_ring">Mining Ring (11 buses, looped)</option>
+<option value="tiny">Tiny Demo (4 buses)</option>
+</select>
+<label>Event script (JSON array). Each event: {t_s, type, ...}</label>
+<textarea id="eventScript"></textarea>
+<div class="muted" style="margin-top:6px">
       Supported types: "pcc_open", "pcc_close", "motor_start", "load_step", "pv_cloud", "wind_gust"
     </div>
-  </div>
 </div>
-
+</div>
 <div class="row">
-  
-  <div class="card">
-    <b>Geography / Insolation</b>
-    <label>Preset</label>
-    <select id="geoPreset">
-      <option value="custom" selected>Custom</option>
-      <option value="arctic">Arctic (φ≈+70°N)</option>
-      <option value="desert">Desert (φ≈+25°N)</option>
-      <option value="tropical">Tropical Africa (φ≈+10°N)</option>
-      <option value="andes">Andes (φ≈+20°S)</option>
-    </select>
-    <label>Latitude φ (deg)</label><input id="latDeg" type="number" value="25" step="1" min="-80" max="80">
-    <label>Day of year (1-365)</label><input id="doy" type="number" value="172" step="1" min="1" max="365">
-    <label>PV soiling (0-1)</label><input id="pvSoil" type="number" value="0.90" step="0.05" min="0" max="1">
-    <label>PV day-shape (1-3)</label><input id="pvShape" type="number" value="1.60" step="0.10" min="1" max="3">
-  </div>
-
 <div class="card">
-    <b>Fleet (VF diesel + VSG BESS + PV/Wind)</b>
-
-    <div class="grid2">
-      <div>
-        <label>Diesel 3.3MW online (0–6)</label><input id="dg33n" type="number" value="3" step="1" min="0" max="6">
-      </div>
-      <div>
-        <label>Diesel 1.25MW online (0–2)</label><input id="dg12n" type="number" value="0" step="1" min="0" max="2">
-      </div>
-    </div>
-
-    <label>Diesel droop R<sub>P</sub> (%)</label><input id="Rdg" type="number" value="4" step="0.5">
-    <label>Diesel min load (pu)</label><input id="dgMinPu" type="number" value="0.35" step="0.05">
-    <div class="grid2">
-      <div><label>Ramp up (MW/s)</label><input id="rampUp" type="number" value="0.2" step="0.05"></div>
-      <div><label>Ramp down (MW/s)</label><input id="rampDn" type="number" value="1.0" step="0.1"></div>
-    </div>
-    <label>Start/stop delay (s)</label><input id="dgDelay" type="number" value="600" step="30">
-    <label>Start/stop hysteresis (MW)</label><input id="dgHyst" type="number" value="1.5" step="0.1">
-    <label>Allow all-off</label>
-    <select id="allowDieselOff">
-      <option value="false" selected>No (keep ≥1 online)</option>
-      <option value="true">Yes</option>
-    </select>
-
-    <hr>
-
-    <div class="grid2">
-      <div><label>BESS Pmax (MW)</label><input id="PbMax" type="number" value="8" step="0.5" min="0"></div>
-      <div><label>BESS Emax (MWh)</label><input id="EbMax" type="number" value="20" step="1" min="0"></div>
-    </div>
-    <div class="grid2">
-      <div><label>Initial SOC (%)</label><input id="soc0" type="number" value="60" step="1" min="0" max="100"></div>
-      <div><label>VSG droop R<sub>P</sub> (%)</label><input id="Rvsg" type="number" value="3" step="0.5"></div>
-    </div>
-    <label>Virtual inertia H (s)</label><input id="Hvsg" type="number" value="6.0" step="0.1">
-
-    <hr>
-
-    <div class="grid2">
-      <div><label>PV max (MW)</label><input id="PpvMax" type="number" value="30" step="1" min="0"></div>
-      <div><label>Wind max (MW)</label><input id="PwindMax" type="number" value="6" step="1" min="0"></div>
-    </div>
-    <div class="grid2">
-      <div><label>Cloudiness (0–1)</label><input id="pvCloud" type="number" value="0.35" step="0.05" min="0" max="1"></div>
-      <div><label>Wind variability (0–1)</label><input id="windVar" type="number" value="0.4" step="0.05" min="0" max="1"></div>
-    </div>
-    <label>Mean wind speed (m/s)</label><input id="windMean" type="number" value="8" step="0.5" min="0">
-  </div>
-
-  <div class="card">
-    <b>Protection (system + feeder)</b>
-    <label>RoCoF max clamp (Hz/s)</label><input id="rocMax" type="number" value="0.9" step="0.1">
-    <div class="grid2">
-      <div><label>UF trip (Hz)</label><input id="uf" type="number" value="59.2" step="0.1"></div>
-      <div><label>OF trip (Hz)</label><input id="of" type="number" value="60.8" step="0.1"></div>
-    </div>
-    <div class="grid2">
-      <div><label>UV trip (pu)</label><input id="uv" type="number" value="0.85" step="0.01"></div>
-      <div><label>OV trip (pu)</label><input id="ov" type="number" value="1.10" step="0.01"></div>
-    </div>
-    <label>Trip delay (s)</label><input id="protDelay" type="number" value="0.25" step="0.05" min="0">
-    <label>Reclose after trip (s)</label><input id="reclose" type="number" value="30" step="1" min="1">
-    <label>UVLS (under-voltage load shedding) stages (comma % of total load)</label>
-    <input id="uvls" type="text" value="10,10,10">
-    <div class="muted" style="margin-top:6px">Stage triggers when Vmin stays below UV for delay; each stage sheds that % of total load.</div>
-  </div>
+<b>Geography / Insolation</b>
+<label>Preset</label>
+<select id="geoPreset">
+<option selected="" value="custom">Custom</option>
+<option value="arctic">Arctic (φ≈+70°N)</option>
+<option value="desert">Desert (φ≈+25°N)</option>
+<option value="tropical">Tropical Africa (φ≈+10°N)</option>
+<option value="andes">Andes (φ≈+20°S)</option>
+</select>
+<label>Latitude φ (deg)</label><input id="latDeg" max="80" min="-80" step="1" type="number" value="25"/>
+<label>Day of year (1-365)</label><input id="doy" max="365" min="1" step="1" type="number" value="172"/>
+<label>PV soiling (0-1)</label><input id="pvSoil" max="1" min="0" step="0.05" type="number" value="0.90"/>
+<label>PV day-shape (1-3)</label><input id="pvShape" max="3" min="1" step="0.10" type="number" value="1.60"/>
 </div>
-
+<div class="card">
+<b>Fleet (VF diesel + VSG BESS + PV/Wind)</b>
+<div class="grid2">
+<div>
+<label>Diesel 3.3MW online (0–6)</label><input id="dg33n" max="6" min="0" step="1" type="number" value="3"/>
+</div>
+<div>
+<label>Diesel 1.25MW online (0–2)</label><input id="dg12n" max="2" min="0" step="1" type="number" value="0"/>
+</div>
+</div>
+<label>Diesel droop R<sub>P</sub> (%)</label><input id="Rdg" step="0.5" type="number" value="4"/>
+<label>Diesel min load (pu)</label><input id="dgMinPu" step="0.05" type="number" value="0.35"/>
+<div class="grid2">
+<div><label>Ramp up (MW/s)</label><input id="rampUp" step="0.05" type="number" value="0.2"/></div>
+<div><label>Ramp down (MW/s)</label><input id="rampDn" step="0.1" type="number" value="1.0"/></div>
+</div>
+<label>Start/stop delay (s)</label><input id="dgDelay" step="30" type="number" value="600"/>
+<label>Start/stop hysteresis (MW)</label><input id="dgHyst" step="0.1" type="number" value="1.5"/>
+<label>Allow all-off</label>
+<select id="allowDieselOff">
+<option selected="" value="false">No (keep ≥1 online)</option>
+<option value="true">Yes</option>
+</select>
+<hr/>
+<div class="grid2">
+<div><label>BESS Pmax (MW)</label><input id="PbMax" min="0" step="0.5" type="number" value="8"/></div>
+<div><label>BESS Emax (MWh)</label><input id="EbMax" min="0" step="1" type="number" value="20"/></div>
+</div>
+<div class="grid2">
+<div><label>Initial SOC (%)</label><input id="soc0" max="100" min="0" step="1" type="number" value="60"/></div>
+<div><label>VSG droop R<sub>P</sub> (%)</label><input id="Rvsg" step="0.5" type="number" value="3"/></div>
+</div>
+<label>Virtual inertia H (s)</label><input id="Hvsg" step="0.1" type="number" value="6.0"/>
+<hr/>
+<div class="grid2">
+<div><label>PV max (MW)</label><input id="PpvMax" min="0" step="1" type="number" value="30"/></div>
+<div><label>Wind max (MW)</label><input id="PwindMax" min="0" step="1" type="number" value="6"/></div>
+</div>
+<div class="grid2">
+<div><label>Cloudiness (0–1)</label><input id="pvCloud" max="1" min="0" step="0.05" type="number" value="0.35"/></div>
+<div><label>Wind variability (0–1)</label><input id="windVar" max="1" min="0" step="0.05" type="number" value="0.4"/></div>
+</div>
+<label>Mean wind speed (m/s)</label><input id="windMean" min="0" step="0.5" type="number" value="8"/>
+</div>
+<div class="card">
+<b>Protection (system + feeder)</b>
+<label>RoCoF max clamp (Hz/s)</label><input id="rocMax" step="0.1" type="number" value="0.9"/>
+<div class="grid2">
+<div><label>UF trip (Hz)</label><input id="uf" step="0.1" type="number" value="59.2"/></div>
+<div><label>OF trip (Hz)</label><input id="of" step="0.1" type="number" value="60.8"/></div>
+</div>
+<div class="grid2">
+<div><label>UV trip (pu)</label><input id="uv" step="0.01" type="number" value="0.85"/></div>
+<div><label>OV trip (pu)</label><input id="ov" step="0.01" type="number" value="1.10"/></div>
+</div>
+<label>Trip delay (s)</label><input id="protDelay" min="0" step="0.05" type="number" value="0.25"/>
+<label>Reclose after trip (s)</label><input id="reclose" min="1" step="1" type="number" value="30"/>
+<label>UVLS (under-voltage load shedding) stages (comma % of total load)</label>
+<input id="uvls" type="text" value="10,10,10"/>
+<div class="muted" style="margin-top:6px">Stage triggers when Vmin stays below UV for delay; each stage sheds that % of total load.</div>
+</div>
+</div>
 <div class="row">
-  <div class="card stack" style="flex:2 1 560px">
-    <b>Power (MW): PV / Wind / Load / Diesel / BESS / Grid-tie</b>
-    <canvas id="pPlot"></canvas>
-    <div class="legend" id="pLegend"></div>
-    <div id="pOverlay" class="overlay"><div class="pill"><span>▶</span><span>Press Start</span></div></div>
-  </div>
-  <div class="card stack" style="flex:1 1 340px">
-    <b>Frequency (Hz) + Vmin (pu) + SOC (%)</b>
-    <canvas id="fPlot"></canvas>
-    <div class="legend" id="fLegend"></div>
-    <div id="fOverlay" class="overlay"><div class="pill"><span>▶</span><span>Press Start</span></div></div>
-    <div id="live" class="kv muted" style="margin-top:6px">—</div>
-  </div>
+<div class="card stack" style="flex:2 1 560px">
+<b>Power (MW): PV / Wind / Load / Diesel / BESS / Grid-tie</b>
+<canvas id="pPlot"></canvas>
+<div class="legend" id="pLegend"></div>
+<div class="overlay" id="pOverlay"><div class="pill"><span>▶</span><span>Press Start</span></div></div>
 </div>
-
+<div class="card stack" style="flex:1 1 340px">
+<b>Frequency (Hz) + Vmin (pu) + SOC (%)</b>
+<canvas id="fPlot"></canvas>
+<div class="legend" id="fLegend"></div>
+<div class="overlay" id="fOverlay"><div class="pill"><span>▶</span><span>Press Start</span></div></div>
+<div class="kv muted" id="live" style="margin-top:6px">—</div>
+</div>
+</div>
 <div class="card">
-  <b>Metrics & Log</b>
-  <div class="kpi" id="kpiRow">
-    <div class="box"><b>Fuel use</b><span id="kpiFuel">—</span></div>
-    <div class="box"><b>Fuel baseline (all diesel)</b><span id="kpiFuelBase">—</span></div>
-    <div class="box"><b>Fuel saved</b><span id="kpiFuelSave">—</span></div>
-    <div class="box"><b>Renewables share</b><span id="kpiRE">—</span></div>
-    <div class="box"><b>Curtailment</b><span id="kpiCurt">—</span></div>
-    <div class="box"><b>N−1 (diesel)</b><span id="kpiN1">—</span></div>
-    <div class="box"><b>Trips</b><span id="kpiTrips">—</span></div>
-    <div class="box"><b>UVLS stages</b><span id="kpiUvls">—</span></div>
-    <div class="box"><b>Min voltage</b><span id="kpiVmin">—</span></div>
-  </div>
-  <div id="log" class="muted">[Idle] Press Start…</div>
+<b>Metrics &amp; Log</b>
+<div class="kpi" id="kpiRow">
+<div class="box"><b>Fuel use</b><span id="kpiFuel">—</span></div>
+<div class="box"><b>Fuel baseline (all diesel)</b><span id="kpiFuelBase">—</span></div>
+<div class="box"><b>Fuel saved</b><span id="kpiFuelSave">—</span></div>
+<div class="box"><b>Renewables share</b><span id="kpiRE">—</span></div>
+<div class="box"><b>Curtailment</b><span id="kpiCurt">—</span></div>
+<div class="box"><b>N−1 (diesel)</b><span id="kpiN1">—</span></div>
+<div class="box"><b>Trips</b><span id="kpiTrips">—</span></div>
+<div class="box"><b>UVLS stages</b><span id="kpiUvls">—</span></div>
+<div class="box"><b>Min voltage</b><span id="kpiVmin">—</span></div>
 </div>
-
+<div class="muted" id="log">[Idle] Press Start…</div>
+</div>
 <footer>
-  <div>© <span id="yy"></span> Energize-style Single-File Engineering Simulator · All rights reserved.</div>
-  <div class="kv">No external libs · Copy-paste to GitHub Pages</div>
+<div>© <span id="yy"></span> Energize-style Single-File Engineering Simulator · All rights reserved.</div>
+<div class="kv">No external libs · Copy-paste to GitHub Pages</div>
 </footer>
-
 <script>
 (() => {
 "use strict";
@@ -300,6 +295,15 @@ function fmt(v,u){
 function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return ((t^(t>>>14))>>>0)/4294967296;};}
 let rng = mulberry32(123456);
 
+function randn(){
+  // Box-Muller using deterministic rng()
+  let u=0, v=0;
+  while(u===0) u=rng();
+  while(v===0) v=rng();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+
+
 el("yy").textContent = String(new Date().getFullYear());
 
 /* ==============================
@@ -313,6 +317,9 @@ const UI = {
   f0: el("f0"),
   Dsys: el("Dsys"),
   alphaLoad: el("alphaLoad"),
+  loadVarOn: el("loadVarOn"),
+  loadVarPct: el("loadVarPct"),
+  loadVarTau: el("loadVarTau"),
 
   geoPreset: el("geoPreset"),
   latDeg: el("latDeg"),
@@ -838,33 +845,68 @@ function drawGrid(ctx,w,h){
     ctx.beginPath(); ctx.moveTo(40,y); ctx.lineTo(w-12,y); ctx.stroke();
   }
 }
-function drawLine(ctx,xs,ys,color,dash=false){
+function drawLine(ctx,xs,ys,color,dash=false,width=2.4){
   ctx.beginPath();
   ctx.setLineDash(dash?[6,6]:[]);
   for(let i=0;i<xs.length;i++){
     if(i===0) ctx.moveTo(xs[i],ys[i]); else ctx.lineTo(xs[i],ys[i]);
   }
-  ctx.strokeStyle=color; ctx.lineWidth=2.4; ctx.stroke();
+  ctx.strokeStyle=color; ctx.lineWidth=width; ctx.stroke();
   ctx.setLineDash([]);
 }
 const COLORS={pv:"#E69F00", wind:"#D55E00", load:"#374151", diesel:"#0072B2", bess:"#009E73", grid:"#111827", freq:"#6A3D9A", vmin:"#f59e0b", soc:"#009E73"};
 
 function ensureLegend(){
-  // Power legend (match curve colors + text color)
+  // Power legend: clickable for solo/highlight and hide.
+  // Click: solo (dim others). Click again: clear.
+  // Alt/Option+Click: toggle hide for that series.
   UI.pLegend.innerHTML = `
-    <span class="item" style="color:${COLORS.pv}"><span class="swatch" style="background:${COLORS.pv}"></span><b>PV</b> <span class="kv muted">MW</span></span>
-    <span class="item" style="color:${COLORS.wind}"><span class="swatch" style="background:${COLORS.wind}"></span><b>Wind</b> <span class="kv muted">MW</span></span>
-    <span class="item" style="color:${COLORS.load}"><span class="swatch" style="background:${COLORS.load}"></span><b>Load</b> <span class="kv muted">MW</span></span>
-    <span class="item" style="color:${COLORS.diesel}"><span class="swatch" style="background:${COLORS.diesel}"></span><b>Diesel</b> <span class="kv muted">MW</span></span>
-    <span class="item" style="color:${COLORS.bess}"><span class="swatch" style="background:${COLORS.bess}"></span><b>BESS</b> <span class="kv muted">MW</span></span>
-    <span class="item" style="color:${COLORS.grid}"><span class="swatch" style="background:${COLORS.grid}"></span><b>Grid-tie</b> <span class="kv muted">MW</span></span>
+    <span class="item" data-key="pv"    style="color:${COLORS.pv}"><span class="sw" style="background:${COLORS.pv}"></span><b>PV</b> <span class="kv muted">MW</span></span>
+    <span class="item" data-key="wind"  style="color:${COLORS.wind}"><span class="sw" style="background:${COLORS.wind}"></span><b>Wind</b> <span class="kv muted">MW</span></span>
+    <span class="item" data-key="load"  style="color:${COLORS.load}"><span class="sw" style="background:${COLORS.load}"></span><b>Load</b> <span class="kv muted">MW</span></span>
+    <span class="item" data-key="diesel"style="color:${COLORS.diesel}"><span class="sw" style="background:${COLORS.diesel}"></span><b>Diesel</b> <span class="kv muted">MW</span></span>
+    <span class="item" data-key="bess"  style="color:${COLORS.bess}"><span class="sw" style="background:${COLORS.bess}"></span><b>BESS</b> <span class="kv muted">MW</span></span>
+    <span class="item" data-key="grid"  style="color:${COLORS.grid}"><span class="sw" style="background:${COLORS.grid}"></span><b>Grid-tie</b> <span class="kv muted">MW</span></span>
   `;
-  // F/V/SOC legend
   UI.fLegend.innerHTML = `
-    <span class="item" style="color:${COLORS.freq}"><span class="swatch" style="background:${COLORS.freq}"></span><b>Frequency</b> <span class="kv muted">Hz</span></span>
-    <span class="item" style="color:${COLORS.vmin}"><span class="swatch" style="background:${COLORS.vmin}"></span><b>Vmin</b> <span class="kv muted">pu</span></span>
-    <span class="item" style="color:${COLORS.soc}"><span class="swatch" style="background:${COLORS.soc}"></span><b>SOC</b> <span class="kv muted">%</span></span>
+    <span class="item" style="color:${COLORS.freq}"><span class="sw" style="background:${COLORS.freq}"></span><b>Frequency</b> <span class="kv muted">Hz</span></span>
+    <span class="item" style="color:${COLORS.vmin}"><span class="sw" style="background:${COLORS.vmin}"></span><b>Vmin</b> <span class="kv muted">pu</span></span>
+    <span class="item" style="color:${COLORS.soc}"><span class="sw" style="background:${COLORS.soc}"></span><b>SOC</b> <span class="kv muted">%</span></span>
   `;
+
+  // attach power legend handlers once (idempotent)
+  if(!UI.pLegend.__wired){
+    UI.pLegend.__wired=true;
+    UI.pLegend.addEventListener("click",(ev)=>{
+      const action = ev.target.closest(".item.action[data-action]");
+      if(action){
+        // Show all: clear focus and all hides
+        FOCUS_POWER=null;
+        HIDE_POWER.clear();
+      }
+      const item = ev.target.closest(".item[data-key]");
+      if(!item) return;
+      const key = item.getAttribute("data-key");
+      const alt = ev.altKey || ev.metaKey; // mac Option is altKey; metaKey for cmd as fallback
+      if(alt){
+        if(HIDE_POWER.has(key)) HIDE_POWER.delete(key); else HIDE_POWER.add(key);
+        // if hidden key was focused, clear focus
+        if(FOCUS_POWER===key && HIDE_POWER.has(key)) FOCUS_POWER=null;
+      }else{
+        FOCUS_POWER = (FOCUS_POWER===key) ? null : key;
+      }
+      // update visual state
+      for(const it of UI.pLegend.querySelectorAll(".item[data-key]")){
+        const k=it.getAttribute("data-key");
+        const hidden = HIDE_POWER.has(k);
+        const focused = (FOCUS_POWER===k);
+        it.style.opacity = hidden ? "0.35" : "1.0";
+        it.style.textDecoration = hidden ? "line-through" : "none";
+        it.style.outline = focused ? "2px solid rgba(17,24,39,0.35)" : "none";
+        it.style.borderRadius = focused ? "6px" : "0";
+      }
+    });
+  }
 }
 
 
@@ -898,6 +940,16 @@ function drawYAxisTicksList(ctx, w, h, yFn, values, fmtFn, color="#6b7280"){
 }
 
 
+
+function seriesAlpha(key){
+  // Only controls visibility. Focus is expressed via line width (not alpha), for readability.
+  if(HIDE_POWER.has(key)) return 0;
+  return 1;
+}
+function widthForPower(key){
+  if(!FOCUS_POWER) return 2.6;
+  return (FOCUS_POWER===key) ? 4.0 : 1.6;
+}
 function plotPower(st){
   if(!st.started) return;
 
@@ -948,12 +1000,12 @@ function plotPower(st){
   PCTX.stroke();
   PCTX.setLineDash([]);
 
-  drawLine(PCTX, xs, seg.map(d=>y(d.Ppv)),   COLORS.pv,   false);
-  drawLine(PCTX, xs, seg.map(d=>y(d.Pwind)),COLORS.wind, true);
-  drawLine(PCTX, xs, seg.map(d=>y(d.Pload)),COLORS.load, false);
-  drawLine(PCTX, xs, seg.map(d=>y(d.Pdg)),   COLORS.diesel,false);
-  drawLine(PCTX, xs, seg.map(d=>y(d.Pb)),    COLORS.bess, true);
-  drawLine(PCTX, xs, seg.map(d=>y(d.Pgrid)), COLORS.grid, false);
+  const a_pv=seriesAlpha("pv"); if(a_pv>0){ PCTX.save(); PCTX.globalAlpha=a_pv; drawLine(PCTX, xs, seg.map(d=>y(d.Ppv)),   COLORS.pv,   false, widthForPower('pv')); PCTX.restore(); }
+  const a_wind=seriesAlpha("wind"); if(a_wind>0){ PCTX.save(); PCTX.globalAlpha=a_wind; drawLine(PCTX, xs, seg.map(d=>y(d.Pwind)),COLORS.wind, true, widthForPower('wind')); PCTX.restore(); }
+  const a_load=seriesAlpha("load"); if(a_load>0){ PCTX.save(); PCTX.globalAlpha=a_load; drawLine(PCTX, xs, seg.map(d=>y(d.Pload)),COLORS.load, false, widthForPower('load')); PCTX.restore(); }
+  const a_diesel=seriesAlpha("diesel"); if(a_diesel>0){ PCTX.save(); PCTX.globalAlpha=a_diesel; drawLine(PCTX, xs, seg.map(d=>y(d.Pdg)),   COLORS.diesel,false, widthForPower('diesel')); PCTX.restore(); }
+  const a_bess=seriesAlpha("bess"); if(a_bess>0){ PCTX.save(); drawLine(PCTX, xs, seg.map(d=>y(d.Pb)),    COLORS.bess, true, widthForPower('bess')); PCTX.restore(); }
+  const a_grid=seriesAlpha("grid"); if(a_grid>0){ PCTX.save(); PCTX.globalAlpha=a_grid; drawLine(PCTX, xs, seg.map(d=>y(d.Pgrid)), COLORS.grid, false, widthForPower('grid')); PCTX.restore(); }
 
   // X axis labels
   PCTX.fillStyle = "#374151";
@@ -1069,6 +1121,9 @@ function plotFreq(st){
    8) State + initialization
 ============================== */
 let ST=null;
+let FOCUS_POWER=null; // 'pv'|'wind'|'load'|'diesel'|'bess'|'grid' or null
+let HIDE_POWER=new Set();
+
 
 function defaultEvents(){
   return [
@@ -1170,6 +1225,7 @@ function initState(){
     f0, f:f0, dfdt:0,
     D:+UI.Dsys.value,
     alpha:+UI.alphaLoad.value/100,
+    loadVar:{ on: !!UI.loadVarOn.checked, pct:(+UI.loadVarPct.value||0)/100, tau:(+UI.loadVarTau.value||20), x:0 },
     rocMax:+UI.rocMax.value,
 
     grid:{
@@ -1444,6 +1500,7 @@ function loadAtBusMWQ(busId, f, Vpu){
   const f0=ST.f0;
   const droop = (1 - ST.alpha*((f-f0)/f0));
   let P=0, Q=0;
+  const jitter = 1 + (ST.loadVar? (ST.loadVar.x||0) : 0);
 
   for(const ld of ST.topo.loads){
     if(ld.bus!==busId) continue;
@@ -1453,8 +1510,8 @@ function loadAtBusMWQ(busId, f, Vpu){
     const iPart = zip[1]*V;
     const pPart = zip[2]*1.0;
     const scaleV = zPart + iPart + pPart;
-    P += Math.max(0, ld.Pmw * scaleV * droop);
-    Q += Math.max(0, ld.Qmvar * scaleV); // keep Q voltage-dependent only (simple)
+    P += Math.max(0, ld.Pmw * jitter * scaleV * droop);
+    Q += Math.max(0, ld.Qmvar * jitter * scaleV); // keep Q voltage-dependent only (simple)
   }
 
   // Motor-start additive load (big realistic miner pain)
@@ -1488,6 +1545,17 @@ function updateMotor(dt){
 
 function stepOnce(){
   const dt = computeDt();
+
+  // Stochastic load variation (global factor)
+  if(ST.loadVar && ST.loadVar.on){
+    const tau = Math.max(1, ST.loadVar.tau||20);
+    const sigma = Math.max(0, ST.loadVar.pct||0);
+    ST.loadVar.x += (-ST.loadVar.x/tau)*dt + sigma*Math.sqrt(2/tau)*Math.sqrt(dt)*randn();
+    ST.loadVar.x = Math.max(-0.25, Math.min(0.25, ST.loadVar.x));
+  }else if(ST.loadVar){
+    ST.loadVar.x = 0;
+  }
+
 
   // Consume events at this time
   consumeEvents();
